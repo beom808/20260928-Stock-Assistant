@@ -267,3 +267,36 @@ def test_check_db_url_masks_password_and_flags_problems():
 
     assert check_db_url("sqlite:///./x.db")[1] == []
     assert check_db_url("mysql://x")[1]
+
+
+@respx.mock
+async def test_intraday_etf_quote_is_flagged_on_card(sessions, no_sleep):
+    """미국 장중(다음 세션)에 수동 실행하면 전일 마감 값이 아님을 카드에 표시한다."""
+    mock_finnhub()
+    intraday = int(datetime(2026, 9, 29, 15, 27, tzinfo=UTC).timestamp())  # 9/29 11:27 EDT
+    respx.get("https://finnhub.io/api/v1/quote").mock(
+        return_value=httpx.Response(200, json={"c": 500.0, "d": -1.0, "dp": -0.2, "t": intraday})
+    )
+    respx.get("https://financialmodelingprep.com/stable/quote").mock(
+        return_value=httpx.Response(402)
+    )
+    st = settings()
+    p = build_providers(st, sessions)
+    payload = await generate(US_CLOSE, st, p, no_llm(), sessions, now=NOW)
+    await p.aclose()
+    d = payload["data"]
+    assert d["session_date_et"] == "2026-09-28"
+    assert all("⚠ 시세 기준일 2026-09-29" in i["note"] for i in d["indices"])
+
+
+@respx.mock
+async def test_close_quote_same_session_has_no_flag(sessions, no_sleep):
+    mock_finnhub()  # 시세 시각 9/28 16:00 EDT = 기준 세션
+    respx.get("https://financialmodelingprep.com/stable/quote").mock(
+        return_value=httpx.Response(402)
+    )
+    st = settings()
+    p = build_providers(st, sessions)
+    payload = await generate(US_CLOSE, st, p, no_llm(), sessions, now=NOW)
+    await p.aclose()
+    assert all("⚠" not in (i.get("note") or "") for i in payload["data"]["indices"])

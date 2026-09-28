@@ -114,6 +114,9 @@ h3 { font-size: 1rem; margin: 16px 0 8px; }
 .table-wrap { overflow-x: auto; }
 .table { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 8px; }
 .table th, .table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+/* 좁은 카드에서 표 제목이 한 글자씩 세로로 쪼개지지 않도록 — 넘치면 가로 스크롤 */
+.table th { white-space: nowrap; }
+.sector .table { display: block; overflow-x: auto; }
 .table td.num { font-weight: 700; text-align: right; }
 .issues { padding-left: 20px; }
 .issues li { margin-bottom: 10px; }

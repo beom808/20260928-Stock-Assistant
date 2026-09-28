@@ -120,10 +120,16 @@ async def _us_indices(ctx: Ctx, session: date) -> list[dict]:
             out.append({"name": name, "symbol": sym, "error": "시세 없음"})
             continue
         if q.as_of and to_et(q.as_of).date() != session:
+            quote_day = to_et(q.as_of).date()
             ctx.warnings.append(
-                f"{name} 시세 기준일({to_et(q.as_of).date()})이 직전 세션({session})과 다름 — "
+                f"{name} 시세 기준일({quote_day})이 직전 세션({session})과 다름 — "
                 "데이터 지연 또는 휴장 여부 확인 필요"
             )
+            # 카드에도 표시: 전일 마감 값이 아닐 수 있음을 숨기지 않는다
+            mismatch = (
+                f"⚠ 시세 기준일 {quote_day}(ET) ≠ 기준 세션 {session} — 마감 값이 아닐 수 있음"
+            )
+            q.note = f"{q.note} / {mismatch}" if q.note else mismatch
         out.append(_quote_dict(q))
     return out
 
