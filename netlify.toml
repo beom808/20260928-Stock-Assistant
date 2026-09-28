@@ -5,6 +5,10 @@
   base = "frontend"
   command = "npm run build"
   publish = ".next"
+  # 크레딧 절약: 무료 플랜은 운영 배포 1회당 15크레딧(월 300) — 웹 화면(frontend/)이 바뀐 커밋만 배포한다.
+  # (리포트 내용은 배포 없이 매일 갱신됨) 종료코드 0 = 배포 건너뜀, 1 = 배포 진행.
+  # 같은 커밋 재배포(Trigger deploy, 예: 환경변수 변경 후)는 항상 진행. 비교 불가(오류)면 안전하게 배포.
+  ignore = 'if [ "$CACHED_COMMIT_REF" = "$COMMIT_REF" ]; then exit 1; fi; git diff --quiet "$CACHED_COMMIT_REF" "$COMMIT_REF" -- .'
 
 [build.environment]
   NODE_VERSION = "22"
