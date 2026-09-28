@@ -219,3 +219,29 @@ def test_api_endpoints(sessions, monkeypatch):
     assert c.post("/jobs/us-close/run").status_code == 401
     assert c.post("/jobs/us-close/run", headers={"X-Job-Token": "bad"}).status_code == 401
     main.app.dependency_overrides.clear()
+
+
+def test_job_cli_exit_code(monkeypatch):
+    from app.jobs import run as jobrun
+
+    results = {"us-close": {"status": "failed"}, "kr-watchlist": {"status": "partial"}}
+    calls: list[str] = []
+
+    async def fake_run_job(rt, force=False, settings=None):
+        calls.append(rt)
+        return results[rt] | {"report_type": rt}
+
+    monkeypatch.setattr(jobrun, "run_job", fake_run_job)
+    assert jobrun.main(["us-close", "kr-watchlist"]) == 1  # 실패가 있으면 1
+    assert calls == ["us-close", "kr-watchlist"]  # 앞 작업이 실패해도 뒤 작업은 실행
+    results["us-close"] = {"status": "ok"}
+    assert jobrun.main(["us-close", "kr-watchlist"]) == 0
+
+
+def test_normalize_db_url():
+    from app.db.session import normalize_db_url
+
+    assert normalize_db_url("postgresql://u:p@h:5432/db") == "postgresql+psycopg://u:p@h:5432/db"
+    assert normalize_db_url("postgres://u:p@h/db") == "postgresql+psycopg://u:p@h/db"
+    assert normalize_db_url(" sqlite:///./x.db ") == "sqlite:///./x.db"
+    assert normalize_db_url("postgresql+psycopg://h/db") == "postgresql+psycopg://h/db"

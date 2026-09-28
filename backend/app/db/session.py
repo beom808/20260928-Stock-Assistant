@@ -10,9 +10,18 @@ from app.config import get_settings
 from app.db.models import Base
 
 
+def normalize_db_url(url: str) -> str:
+    """Supabase·Render 등이 주는 postgres(ql):// 주소를 설치된 psycopg(v3) 드라이버로 고정."""
+    url = url.strip()
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix) :]
+    return url
+
+
 @lru_cache
 def get_engine(url: str | None = None) -> Engine:
-    url = url or get_settings().database_url
+    url = normalize_db_url(url or get_settings().database_url)
     kwargs: dict = {"pool_pre_ping": True}
     if url.startswith("sqlite"):
         kwargs["connect_args"] = {"check_same_thread": False}

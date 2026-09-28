@@ -1,13 +1,14 @@
 # 스케줄 설정 (클라우드 크론, UTC 기준)
 
+> Render 사용 시 이 일정은 저장소 루트 `render.yaml` 에 이미 들어 있다 → `infra/render.md` 참고.
+
 서버·크론은 **UTC** 로 동작하고 KST 변환은 애플리케이션(`backend/app/timeutil.py`)에서만 한다.
 한국(KST)은 서머타임이 없으므로 KST 고정 시각 → UTC 크론식은 연중 고정이다.
 미국 서머타임 전환은 리포트 **내용**(ET↔KST 환산)에서 IANA tz DB 로 자동 처리된다.
 
 | 리포트 | 발행 시각(KST) | 크론(UTC) | 비고 |
 |---|---|---|---|
-| `us-close` 전일 미국 마감 | 월~금 07:00 | `0 22 * * 0-4` | 미국 마감 05:00(EDT)/06:00(EST) KST 이후 |
-| `kr-watchlist` 관전 포인트 | 월~금 07:05 | `5 22 * * 0-4` | us-close 가 없으면 자동으로 먼저 생성 |
+| `us-close` → `kr-watchlist` (한 작업에서 순서대로) | 월~금 07:00 | `0 22 * * 0-4` | `python -m app.jobs.run us-close kr-watchlist` |
 | `kr-close-and-calendar` | 월~금 15:40 | `40 6 * * 1-5` | 아래 설명 참고 |
 
 - **15:40 권장 이유**: 정규장은 15:30 에 끝나지만(15:20~15:30 종가 단일가), 종가·지수 확정 데이터가
@@ -41,7 +42,7 @@ API Destination(POST + `X-Job-Token` 헤더) 또는 컨테이너 태스크(`pyth
 
 ```bash
 cd backend
-python -m app.jobs.run us-close
-python -m app.jobs.run kr-watchlist
+python -m app.jobs.run us-close kr-watchlist
 python -m app.jobs.run kr-close-and-calendar --force
+# 하나라도 실패하면 종료 코드 1 (크론 화면에 실패로 표시)
 ```

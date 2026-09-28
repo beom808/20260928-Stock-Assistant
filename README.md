@@ -26,7 +26,15 @@ backend/            Python 3.11+ (3.12 권장) · FastAPI · SQLAlchemy 2 · Pos
   tests/            pytest (서머타임 경계, API 장애 fallback, 매핑 회귀 등)
 frontend/           Next.js 16 (App Router) 웹 대시보드 — 카드형 UI, 원문 링크는 새 탭으로 열림
 infra/scheduler.md  클라우드 크론(UTC) 설정
+infra/render.md     백엔드 배포 가이드 (Render + Supabase)
+render.yaml         Render Blueprint (API 서버 + 크론잡 2개)
+netlify.toml        Netlify 설정 (frontend/ 빌드)
 ```
+
+## 배포
+
+- 웹 화면: Netlify (`netlify.toml`, 저장소 main 브랜치 자동 배포)
+- 백엔드·스케줄: Render + Supabase → **[infra/render.md](infra/render.md) 의 단계별 가이드** 참고
 
 ## 실행
 
@@ -37,8 +45,9 @@ python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"            # FCM 푸시까지 쓰면 ".[dev,push]"
 cp .env.example .env               # 키 입력 (절대 커밋 금지 — .gitignore 처리됨)
 uvicorn app.main:app --reload      # http://localhost:8000/docs
-python -m app.jobs.run us-close --force   # 수동 생성
-pytest                                    # 테스트
+python -m app.jobs.run us-close kr-watchlist --force   # 수동 생성
+pytest                                                 # 테스트 (SQLite)
+TEST_DATABASE_URL=postgresql://... pytest              # 같은 테스트를 실제 PostgreSQL 로
 
 # 프론트엔드
 cd frontend

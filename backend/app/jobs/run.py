@@ -1,9 +1,10 @@
 """스케줄 잡 진입점.
 
 사용법:
-  python -m app.jobs.run us-close
-  python -m app.jobs.run kr-watchlist
+  python -m app.jobs.run us-close kr-watchlist      # 07:00 KST: 여러 리포트를 순서대로 실행
   python -m app.jobs.run kr-close-and-calendar [--force]
+
+하나라도 status=failed 이거나 예외가 나면 종료 코드 1 → 크론 실행이 '실패'로 표시된다.
 
 클라우드 크론(UTC)은 이 스크립트를 직접 실행하거나 POST /jobs/{type}/run 을 호출한다.
 KST 는 서머타임이 없으므로 UTC 크론 식은 고정이다 (infra/scheduler.md 참고).
@@ -17,6 +18,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import sys
 
 from app.config import Settings, get_settings
 from app.db import store
@@ -68,14 +70,24 @@ async def run_job(report_type: str, force: bool = False, settings: Settings | No
     return {"status": payload["status"], "report_type": report_type}
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     p = argparse.ArgumentParser()
-    p.add_argument("report_type", choices=REPORT_TYPES)
+    p.add_argument("report_types", nargs="+", choices=REPORT_TYPES)
     p.add_argument("--force", action="store_true", help="휴장일에도 실행")
-    a = p.parse_args()
-    print(asyncio.run(run_job(a.report_type, a.force)))
+    a = p.parse_args(argv)
+    failed = False
+    for rt in a.report_types:
+        try:
+            result = asyncio.run(run_job(rt, a.force))
+        except Exception:  # noqa: BLE001 - 다음 리포트는 계속 시도하고 종료 코드로 알린다
+            log.exception("%s 생성 중 예외", rt)
+            failed = True
+            continue
+        print(result)
+        failed |= result.get("status") == "failed"
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
