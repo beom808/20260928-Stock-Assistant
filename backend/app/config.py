@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     kiwoom_app_key: str = ""
     kiwoom_app_secret: str = ""
     kiwoom_base_url: str = "https://api.kiwoom.com"
+    # 키움 허용 IP 대응: 고정 IP 프록시 주소 (예: Fixie 의 http://fixie:비밀번호@...:80). 비밀 정보.
+    kiwoom_proxy_url: str = ""
 
     naver_client_id: str = ""
     naver_client_secret: str = ""

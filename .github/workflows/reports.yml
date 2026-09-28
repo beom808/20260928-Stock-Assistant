@@ -8,7 +8,7 @@
 #
 # 필요한 저장소 Secrets (Settings → Secrets and variables → Actions):
 #   DATABASE_URL (필수), FINNHUB_API_KEY (필수 권장),
-#   KIWOOM_APP_KEY, KIWOOM_APP_SECRET (국내 지수 — 키움 REST, 권장),
+#   KIWOOM_APP_KEY, KIWOOM_APP_SECRET, KIWOOM_PROXY_URL (국내 지수 — 키움 REST + 고정 IP 프록시),
 #   FMP_API_KEY, KIS_APP_KEY, KIS_APP_SECRET, ANTHROPIC_API_KEY,
 #   NAVER_CLIENT_ID, NAVER_CLIENT_SECRET (선택)
 
@@ -98,9 +98,8 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-          # 키움(IP 등록 필요) 리포트를 Render 서버에서 실행하기 위한 값. 토큰이 없으면 여기서 직접 실행.
-          RENDER_API_URL: ${{ vars.RENDER_API_URL || 'https://stock-assistant-api-7oz1.onrender.com' }}
-          RENDER_JOB_TOKEN: ${{ secrets.RENDER_JOB_TOKEN }}
+          # 키움은 등록된 IP 에서만 요청을 받으므로 고정 IP 프록시(Fixie 등)를 경유 (비밀 정보)
+          KIWOOM_PROXY_URL: ${{ secrets.KIWOOM_PROXY_URL }}
           TYPES: ${{ steps.select.outputs.types }}
           FLAGS: ${{ steps.select.outputs.flags }}
         run: |
@@ -119,22 +118,4 @@ jobs:
               print(f"::error::DATABASE_URL 문제: {p}")
           sys.exit(1 if problems else 0)
           PY
-          # 키움 국내 지수가 필요한 리포트는 Render(고정 IP)에서 실행, 나머지는 여기서 실행
-          LOCAL=""; REMOTE=""
-          for t in $TYPES; do
-            if [ "$t" = "kr-close-and-calendar" ] && [ -n "$RENDER_JOB_TOKEN" ]; then
-              REMOTE="$REMOTE $t"
-            else
-              LOCAL="$LOCAL $t"
-            fi
-          done
-          STATUS=0
-          if [ -n "$LOCAL" ]; then
-            echo "GitHub 에서 실행:$LOCAL"
-            python -m app.jobs.run $LOCAL $FLAGS || STATUS=1
-          fi
-          if [ -n "$REMOTE" ]; then
-            echo "Render 서버에서 실행:$REMOTE"
-            python -m app.jobs.remote $REMOTE $FLAGS || STATUS=1
-          fi
-          exit $STATUS
+          python -m app.jobs.run $TYPES $FLAGS

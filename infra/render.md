@@ -55,21 +55,18 @@
 
 없는 키는 등록하지 않으면 된다(해당 섹션만 "수집 실패"로 표시).
 
-## 3-1단계. (키움 사용 시) 국내 지수를 Render 서버에서 조회하도록 설정
+## 3-1단계. (키움 사용 시) 고정 IP 프록시로 국내 지수 조회
 
-키움 REST API 는 **등록된 IP 에서만** 요청을 받는다(미등록 시 오류 `8050: IP가 등록되지 않았습니다`).
-GitHub Actions 는 실행마다 IP 가 바뀌므로, 키움이 필요한 **오후 리포트(kr-close-and-calendar)는 Render 서버에서 실행**한다.
-`RENDER_JOB_TOKEN` 이 없으면 기존처럼 GitHub 에서 실행된다(국내 지수만 실패).
+키움 REST API 는 **등록된 IP(최대 10개, 개별 주소)** 에서만 요청을 받는다
+(미등록 시 `8050: IP가 등록되지 않았습니다`). GitHub Actions 는 실행마다 IP 가 바뀌고,
+Render 의 외부 IP 는 다른 사용자와 공유하는 넓은 대역(/24)이라 등록에 적합하지 않다.
+→ **키움 요청만 고정 IP 프록시(Fixie)** 를 거치게 한다. HTTPS 라 프록시는 키·내용을 볼 수 없다.
 
-1. Render → `stock-assistant-api` → 상단 **Connect** → **Outbound** 에 나온 IP 를 확인
-2. 키움 REST API 홈페이지(인증로그인 가능한 기기) → **API 사용신청** → 위 IP 들을 허용 IP 로 등록 (최대 10개)
-3. Render → Environment Groups → `stock-assistant-secrets` 에 추가 → **Save and deploy**
-   - `KIWOOM_APP_KEY`, `KIWOOM_APP_SECRET`, `FINNHUB_API_KEY` (오후 리포트의 실적 일정용)
-   - 선택: `FMP_API_KEY`, `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`, `ANTHROPIC_API_KEY`
-4. Render → `stock-assistant-api` → **Environment** 에서 `JOB_TRIGGER_TOKEN` 값을 복사
-   → GitHub Secrets 에 **`RENDER_JOB_TOKEN`** 이름으로 등록
-5. (서버 주소가 바뀐 경우만) GitHub → Settings → Secrets and variables → Actions → **Variables** 탭에
-   `RENDER_API_URL` = Render 서버 주소
+1. https://usefixie.com 가입 → **New proxy application** (무료 플랜 한도는 가입 화면에서 확인)
+2. 앱 화면의 **Outbound IPs(2개)** 를 키움 REST API 홈페이지 → **API 사용신청** → 허용 IP 로 등록
+3. 앱 화면의 **Proxy URL** (`http://fixie:...@...:80`, 비밀번호 포함) 을
+   GitHub Secrets 에 **`KIWOOM_PROXY_URL`** 로 등록 (채팅·코드에 붙여 넣지 말 것)
+4. Actions → reports → Run workflow(`afternoon`) 로 확인 — 로그에 키움 오류가 없으면 성공
 
 ## 4단계. 첫 리포트 수동 생성
 

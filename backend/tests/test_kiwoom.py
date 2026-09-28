@@ -175,3 +175,20 @@ async def test_failed_token_is_not_cached_but_success_is(sessions, no_sleep):
     finally:
         await p.aclose()
     assert route.call_count == 2
+
+
+async def test_proxy_used_only_for_kiwoom(sessions):
+    st = settings(kiwoom_proxy_url="http://user:pw@proxy.example.test:80")
+    p = build_providers(st, sessions)
+    try:
+        assert p.kiwoom_http is not None
+        assert p.kiwoom.client.http is p.kiwoom_http  # 키움만 프록시 클라이언트
+        assert p.finnhub.client.http is p.http  # 나머지는 직접 접속
+        assert p.kis.client.http is p.http
+    finally:
+        await p.aclose()
+    p2 = build_providers(settings(), sessions)
+    try:
+        assert p2.kiwoom_http is None and p2.kiwoom.client.http is p2.http
+    finally:
+        await p2.aclose()
