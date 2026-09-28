@@ -1,0 +1,36 @@
+[project]
+name = "stock-assistant-backend"
+version = "0.1.0"
+description = "한미 증시 연동 리서치 보조 리포트 백엔드 (투자자문 아님)"
+requires-python = ">=3.11"  # 3.12 권장. 3.11에서도 동작하도록 작성됨
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "sqlalchemy>=2.0",
+  "psycopg[binary]>=3.2",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "httpx>=0.27",
+  "anthropic>=1.8",
+  "holidays>=0.60",
+  "tzdata",
+]
+
+[project.optional-dependencies]
+push = ["google-auth>=2.30"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "respx>=0.21", "black>=24", "ruff>=0.5"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
