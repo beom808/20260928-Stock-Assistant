@@ -26,15 +26,17 @@ backend/            Python 3.11+ (3.12 권장) · FastAPI · SQLAlchemy 2 · Pos
   tests/            pytest (서머타임 경계, API 장애 fallback, 매핑 회귀 등)
 frontend/           Next.js 16 (App Router) 웹 대시보드 — 카드형 UI, 원문 링크는 새 탭으로 열림
 infra/scheduler.md  클라우드 크론(UTC) 설정
-infra/render.md     백엔드 배포 가이드 (Render + Supabase)
-render.yaml         Render Blueprint (API 서버 + 크론잡 2개)
+infra/render.md     백엔드 배포 가이드 (Render + Supabase + GitHub Actions)
+render.yaml         Render Blueprint (API 서버, 무료 플랜)
+.github/workflows/reports.yml  리포트 예약 생성 (월~금 07:00 / 15:40 KST)
 netlify.toml        Netlify 설정 (frontend/ 빌드)
 ```
 
 ## 배포
 
 - 웹 화면: Netlify (`netlify.toml`, 저장소 main 브랜치 자동 배포)
-- 백엔드·스케줄: Render + Supabase → **[infra/render.md](infra/render.md) 의 단계별 가이드** 참고
+- API 서버: Render 무료 플랜 / DB: Supabase / 리포트 생성: GitHub Actions 예약 실행
+- **[infra/render.md](infra/render.md) 의 단계별 가이드** 참고
 
 ## 실행
 

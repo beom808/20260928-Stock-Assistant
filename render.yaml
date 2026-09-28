@@ -1,14 +1,12 @@
-# Render Blueprint — 백엔드(FastAPI) + 리포트 생성 크론잡 2개
+# Render Blueprint — 백엔드 API 서버(무료 플랜) 1개
+#
+# 이 서버는 DB 에 저장된 리포트를 웹 화면(Netlify)에 전달하는 역할만 한다.
+# 리포트 생성(하루 2회)은 GitHub Actions 가 무료로 실행한다 → .github/workflows/reports.yml
 #
 # 사전 준비 (Blueprint 적용 전에 반드시):
 #   Render 대시보드 → Environment Groups → 이름 "stock-assistant-secrets" 그룹을 만들고
-#   DATABASE_URL(Supabase) 과 API 키들을 넣는다. 자세한 순서는 infra/render.md 참고.
-#   (API 키는 이 파일·GitHub 에 절대 적지 않는다.)
-#
-# 크론 일정은 UTC 기준이다. 한국(KST)은 서머타임이 없어 연중 고정.
-#   "0 22 * * 0-4"  = 월~금 07:00 KST  (미국 마감 → 관전 포인트 순서로 생성)
-#   "40 6 * * 1-5"  = 월~금 15:40 KST  (국내 마감 + 익일 미국 캘린더)
-# 한국 휴장일에는 작업이 스스로 건너뛴다(skipped).
+#   DATABASE_URL(Supabase Session pooler 주소)을 넣는다. 자세한 순서는 infra/render.md 참고.
+#   (비밀번호·API 키는 이 파일·코드에 절대 적지 않는다.)
 # Python 버전은 .python-version(3.12) 파일로 지정한다.
 
 services:
@@ -28,29 +26,3 @@ services:
         value: https://stockassistant2.netlify.app
       - key: JOB_TRIGGER_TOKEN
         generateValue: true
-
-  - type: cron
-    name: stock-assistant-morning
-    runtime: python
-    plan: starter
-    region: singapore
-    schedule: "0 22 * * 0-4"
-    rootDir: backend
-    buildCommand: pip install .
-    startCommand: python -m app.jobs.run us-close kr-watchlist
-    autoDeployTrigger: commit
-    envVars:
-      - fromGroup: stock-assistant-secrets
-
-  - type: cron
-    name: stock-assistant-afternoon
-    runtime: python
-    plan: starter
-    region: singapore
-    schedule: "40 6 * * 1-5"
-    rootDir: backend
-    buildCommand: pip install .
-    startCommand: python -m app.jobs.run kr-close-and-calendar
-    autoDeployTrigger: commit
-    envVars:
-      - fromGroup: stock-assistant-secrets

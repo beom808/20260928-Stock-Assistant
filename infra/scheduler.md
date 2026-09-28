@@ -1,6 +1,7 @@
 # 스케줄 설정 (클라우드 크론, UTC 기준)
 
-> Render 사용 시 이 일정은 저장소 루트 `render.yaml` 에 이미 들어 있다 → `infra/render.md` 참고.
+> 현재 배포 구성에서는 이 일정이 GitHub Actions(`.github/workflows/reports.yml`)에 들어 있다 → `infra/render.md` 참고.
+> GitHub 예약 실행은 수 분 이상 늦게 시작될 수 있다.
 
 서버·크론은 **UTC** 로 동작하고 KST 변환은 애플리케이션(`backend/app/timeutil.py`)에서만 한다.
 한국(KST)은 서머타임이 없으므로 KST 고정 시각 → UTC 크론식은 연중 고정이다.

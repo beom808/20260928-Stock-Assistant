@@ -1,0 +1,104 @@
+# 리포트 자동 생성 (무료 GitHub Actions 예약 실행)
+#
+# 일정은 UTC 기준. 한국(KST)은 서머타임이 없어 연중 고정.
+#   월~금 07:00 KST = "0 22 * * 0-4"  → 전일 미국 마감 → 한국장 관전 포인트
+#   월~금 15:40 KST = "40 6 * * 1-5"  → 국내 장 마감 + 익일 미국 캘린더
+# GitHub 예약 실행은 부하에 따라 수 분 이상 늦게 시작될 수 있다.
+# 한국 휴장일에는 작업이 스스로 건너뛴다(skipped). 수동 실행: Actions 탭 → Run workflow.
+#
+# 필요한 저장소 Secrets (Settings → Secrets and variables → Actions):
+#   DATABASE_URL (필수), FINNHUB_API_KEY (필수 권장),
+#   FMP_API_KEY, KIS_APP_KEY, KIS_APP_SECRET, ANTHROPIC_API_KEY,
+#   NAVER_CLIENT_ID, NAVER_CLIENT_SECRET (선택)
+
+name: reports
+
+on:
+  schedule:
+    - cron: "0 22 * * 0-4"
+    - cron: "40 6 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      reports:
+        description: "생성할 리포트"
+        type: choice
+        options:
+          - morning
+          - afternoon
+          - all
+        default: morning
+      force:
+        description: "한국 휴장일에도 실행"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reports
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: backend/.python-version
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Install backend
+        run: pip install ./backend
+
+      - name: Select reports
+        id: select
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_REPORTS: ${{ inputs.reports }}
+          INPUT_FORCE: ${{ inputs.force }}
+        run: |
+          MORNING="us-close kr-watchlist"
+          AFTERNOON="kr-close-and-calendar"
+          if [ "$EVENT" = "schedule" ]; then
+            case "$SCHEDULE" in
+              "0 22 * * 0-4") TYPES="$MORNING" ;;
+              "40 6 * * 1-5") TYPES="$AFTERNOON" ;;
+              *) echo "알 수 없는 일정: $SCHEDULE"; exit 1 ;;
+            esac
+          else
+            case "$INPUT_REPORTS" in
+              morning) TYPES="$MORNING" ;;
+              afternoon) TYPES="$AFTERNOON" ;;
+              all) TYPES="$MORNING $AFTERNOON" ;;
+            esac
+          fi
+          FLAGS=""
+          if [ "$INPUT_FORCE" = "true" ]; then FLAGS="--force"; fi
+          echo "types=$TYPES" >> "$GITHUB_OUTPUT"
+          echo "flags=$FLAGS" >> "$GITHUB_OUTPUT"
+          echo "실행할 리포트: $TYPES $FLAGS"
+
+      - name: Generate reports
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        run: |
+          # DATABASE_URL 이 없으면 러너 안의 임시 SQLite 에 저장되고 사라지므로 즉시 실패시킨다
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret 이 설정되지 않았습니다 (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+          python -m app.jobs.run ${{ steps.select.outputs.types }} ${{ steps.select.outputs.flags }}
