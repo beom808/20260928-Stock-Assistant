@@ -1,0 +1,15 @@
+{
+  "_note": "회귀 테스트용 '합성' 샘플 뉴스 10건 (실제 기사 아님, URL 은 example.com). 실서비스 데이터로 사용 금지.",
+  "items": [
+    {"id": "s1", "headline": "Fed holds interest rates steady, Powell signals patience on rate cuts", "summary": "The Federal Reserve left its benchmark rate unchanged as inflation stays above target.", "related": "", "url": "https://example.com/news/1", "ts": 1790000000},
+    {"id": "s2", "headline": "Nvidia beats earnings estimates, raises guidance on AI chip demand", "summary": "Nvidia reported quarterly revenue above forecasts driven by data center GPU sales.", "related": "NVDA", "url": "https://example.com/news/2", "ts": 1790000100},
+    {"id": "s3", "headline": "Micron shares jump as HBM memory prices rise", "summary": "Memory chipmaker Micron gained after analysts lifted DRAM and HBM pricing forecasts.", "related": "MU", "url": "https://example.com/news/3", "ts": 1790000200},
+    {"id": "s4", "headline": "Tesla deliveries fall short as EV demand cools", "summary": "Tesla delivered fewer electric vehicles than expected in the quarter.", "related": "TSLA", "url": "", "ts": 1790000300},
+    {"id": "s5", "headline": "Apple unveils new iPhone lineup with upgraded cameras", "summary": "Apple introduced its latest smartphone models at its annual event.", "related": "AAPL", "url": "https://example.com/news/5", "ts": 1790000400},
+    {"id": "s6", "headline": "Oil prices surge after OPEC+ announces output cuts", "summary": "Brent crude rose more than 4% after the producer group agreed to reduce supply.", "related": "", "url": "https://example.com/news/6", "ts": 1790000500},
+    {"id": "s7", "headline": "Eli Lilly obesity drug wins FDA approval for new indication", "summary": "The FDA approved an expanded use of Lilly's GLP-1 treatment.", "related": "LLY", "url": "https://example.com/news/7", "ts": 1790000600},
+    {"id": "s8", "headline": "Utilities rally as data center power demand forecasts climb", "summary": "Power grid operators expect electricity demand from AI data centers to double.", "related": "", "url": "https://example.com/news/8", "ts": 1790000700},
+    {"id": "s9", "headline": "Pentagon awards $5 billion missile defense contract", "summary": "Lockheed Martin won the defense contract for next-generation missile systems.", "related": "LMT", "url": "not a url", "ts": 1790000800},
+    {"id": "s10", "headline": "JPMorgan says lending growth slows as treasury yields climb", "summary": "The bank flagged softer loan demand amid higher yields.", "related": "JPM", "url": "https://example.com/news/10", "ts": 1790000900}
+  ]
+}
