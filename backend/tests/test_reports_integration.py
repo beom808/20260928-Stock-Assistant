@@ -245,3 +245,25 @@ def test_normalize_db_url():
     assert normalize_db_url("postgres://u:p@h/db") == "postgresql+psycopg://u:p@h/db"
     assert normalize_db_url(" sqlite:///./x.db ") == "sqlite:///./x.db"
     assert normalize_db_url("postgresql+psycopg://h/db") == "postgresql+psycopg://h/db"
+
+
+def test_check_db_url_masks_password_and_flags_problems():
+    from app.db.session import check_db_url
+
+    good = (
+        "postgresql://postgres.abc:Secret123@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
+    )
+    masked, problems = check_db_url(good)
+    assert problems == [] and "Secret123" not in masked and "***" in masked
+
+    masked, problems = check_db_url(good.replace("Secret123@", "Secret123@@"))
+    assert any("'@'" in p for p in problems) and "Secret123" not in masked
+
+    _, problems = check_db_url(good.replace("Secret123", "[YOUR-PASSWORD]"))
+    assert any("YOUR-PASSWORD" in p for p in problems)
+
+    _, problems = check_db_url("postgresql://postgres:pw@db.abc.supabase.co:5432/postgres")
+    assert any("Session pooler" in p for p in problems)
+
+    assert check_db_url("sqlite:///./x.db")[1] == []
+    assert check_db_url("mysql://x")[1]

@@ -101,4 +101,14 @@ jobs:
             echo "::error::DATABASE_URL secret 이 설정되지 않았습니다 (Settings → Secrets and variables → Actions)"
             exit 1
           fi
+          # 주소 형식 점검 (비밀번호는 가려서 출력)
+          python - <<'PY'
+          import os, sys
+          from app.db.session import check_db_url
+          masked, problems = check_db_url(os.environ["DATABASE_URL"])
+          print("DATABASE_URL:", masked)
+          for p in problems:
+              print(f"::error::DATABASE_URL 문제: {p}")
+          sys.exit(1 if problems else 0)
+          PY
           python -m app.jobs.run ${{ steps.select.outputs.types }} ${{ steps.select.outputs.flags }}
