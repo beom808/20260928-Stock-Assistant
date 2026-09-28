@@ -9,3 +9,7 @@
 [build.environment]
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
+
+# Next.js 어댑터(OpenNext)를 명시적으로 사용 — 자동 감지가 안 되면 정적 파일만 올라가 전 경로가 404 가 된다.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
