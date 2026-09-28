@@ -1,0 +1,11 @@
+# Netlify 배포 설정 — 웹 대시보드(Next.js)는 frontend/ 폴더에 있다.
+# 백엔드(FastAPI, backend/)는 Netlify 에서 실행되지 않으므로 별도 서버에 배포하고
+# Netlify 환경변수 API_BASE_URL 에 그 주소를 넣어야 리포트가 표시된다.
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
