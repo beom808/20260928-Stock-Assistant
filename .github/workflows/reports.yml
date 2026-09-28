@@ -8,6 +8,7 @@
 #
 # 필요한 저장소 Secrets (Settings → Secrets and variables → Actions):
 #   DATABASE_URL (필수), FINNHUB_API_KEY (필수 권장),
+#   KIWOOM_APP_KEY, KIWOOM_APP_SECRET (국내 지수 — 키움 REST, 권장),
 #   FMP_API_KEY, KIS_APP_KEY, KIS_APP_SECRET, ANTHROPIC_API_KEY,
 #   NAVER_CLIENT_ID, NAVER_CLIENT_SECRET (선택)
 
@@ -90,6 +91,8 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          KIWOOM_APP_KEY: ${{ secrets.KIWOOM_APP_KEY }}
+          KIWOOM_APP_SECRET: ${{ secrets.KIWOOM_APP_SECRET }}
           KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
           KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

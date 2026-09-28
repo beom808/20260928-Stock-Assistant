@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     kis_app_secret: str = ""
     kis_base_url: str = "https://openapi.koreainvestment.com:9443"
 
+    # 키움증권 REST API (설정되어 있으면 국내 지수에 KIS 보다 우선 사용)
+    kiwoom_app_key: str = ""
+    kiwoom_app_secret: str = ""
+    kiwoom_base_url: str = "https://api.kiwoom.com"
+
     naver_client_id: str = ""
     naver_client_secret: str = ""
     naver_daily_limit: int = 20000

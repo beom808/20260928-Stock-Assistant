@@ -48,7 +48,8 @@
 | `DATABASE_URL` | 1단계 주소 (Render 와 같은 값) | **필수** |
 | `FINNHUB_API_KEY` | https://finnhub.io 가입 → Dashboard 의 API Key | **필수 권장** — 미국 뉴스·실적 일정 |
 | `FMP_API_KEY` | https://financialmodelingprep.com | 선택 — 미국 지수·경제캘린더 (일부 유료일 수 있음) |
-| `KIS_APP_KEY`, `KIS_APP_SECRET` | https://apiportal.koreainvestment.com | 선택 — 코스피·코스닥 (계좌 필요) |
+| `KIWOOM_APP_KEY`, `KIWOOM_APP_SECRET` | https://openapi.kiwoom.com (키움 계좌로 API 사용 신청 후 발급) | 권장 — 코스피·코스닥 |
+| `KIS_APP_KEY`, `KIS_APP_SECRET` | https://apiportal.koreainvestment.com | 선택 — 코스피·코스닥 대안 (키움 실패 시 사용) |
 | `ANTHROPIC_API_KEY` | https://console.anthropic.com | 선택 — AI 요약 (사용량 과금) |
 | `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` | https://developers.naver.com | 선택 — 국내 당일 이슈 |
 

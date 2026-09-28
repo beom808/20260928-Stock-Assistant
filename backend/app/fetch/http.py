@@ -161,8 +161,15 @@ class ApiClient:
         json_body: Any = None,
         ttl: timedelta = timedelta(minutes=10),
         use_cache: bool = True,
+        cache_extra: dict[str, Any] | None = None,
+        cache_if: Callable[[Any], bool] | None = None,
     ) -> FetchResult:
-        key = cache_key(self.provider, f"{method} {url}", params if json_body is None else None)
+        # json_body 는 시크릿이 섞일 수 있어 캐시 키에서 제외한다.
+        # 같은 URL 에 본문만 다른 요청(예: 지수 코드)은 cache_extra 로 비밀이 아닌 구분값을 넘긴다.
+        key_params = params if json_body is None else None
+        if cache_extra:
+            key_params = {**(key_params or {}), **cache_extra}
+        key = cache_key(self.provider, f"{method} {url}", key_params)
         cached = self._read_cache(key) if use_cache else None
         if cached is not None and ensure_aware(cached.expires_at_utc) > now_utc():
             return FetchResult(
@@ -207,7 +214,9 @@ class ApiClient:
             except ValueError:
                 last_err = ApiError(self.provider, "parse", "JSON 파싱 실패")
                 break
-            fetched = self._write_cache(key, body, ttl) if use_cache else now_utc()
+            # HTTP 200 이어도 본문이 실패(return_code 등)면 캐시하지 않는다 → 다음 호출에서 재시도
+            cacheable = use_cache and (cache_if is None or cache_if(body))
+            fetched = self._write_cache(key, body, ttl) if cacheable else now_utc()
             return FetchResult(body, self.provider, fetched)
 
         assert last_err is not None

@@ -278,15 +278,42 @@ async def _kr_issues(ctx: Ctx) -> tuple[list[dict], str]:
 
 
 async def _kr_indices(ctx: Ctx) -> list[dict]:
+    """국내 지수: 키움 REST(설정 시) → 한국투자증권 KIS(설정 시) 순서로 시도."""
+    kiwoom, kis = ctx.providers.kiwoom, ctx.providers.kis
     out = []
+    kospi_close: float | None = None
     for name in ("KOSPI", "KOSDAQ"):
-        try:
-            q = await ctx.providers.kis.index_quote(name)
-            ctx.src("한국투자증권 KIS Open API", "국내 지수", q.as_of)
-            out.append(_quote_dict(q))
-        except ApiError as e:
-            ctx.errors.append(f"{name} 지수 수집 실패: {e}")
+        q: IndexQuote | None = None
+        errs: list[str] = []
+        if kiwoom.configured:
+            try:
+                q = await kiwoom.index_quote(
+                    name, exclude_close=kospi_close if name == "KOSDAQ" else None
+                )
+                q.as_of = q.as_of or ctx.now
+                ctx.src("키움증권 REST API", "국내 지수", q.as_of)
+            except ApiError as e:
+                errs.append(str(e))
+        if q is None:
+            try:
+                q = await kis.index_quote(name)
+                ctx.src("한국투자증권 KIS Open API", "국내 지수", q.as_of)
+            except ApiError as e:
+                if (
+                    e.kind != "config"
+                ):  # KIS 미설정은 키움 오류가 있으면 그것을, 없으면 아래 안내를 보여줌
+                    errs.append(str(e))
+        if q is None:
+            msg = (
+                "; ".join(errs)
+                or "국내 지수 API 키 미설정 (KIWOOM_APP_KEY/SECRET 또는 KIS_APP_KEY/SECRET)"
+            )
+            ctx.errors.append(f"{name} 지수 수집 실패: {msg}")
             out.append({"name": name, "error": "시세 없음"})
+            continue
+        if name == "KOSPI":
+            kospi_close = q.close
+        out.append(_quote_dict(q))
     return out
 
 

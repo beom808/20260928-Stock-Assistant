@@ -44,6 +44,7 @@ class KisFetcher:
             },
             headers={"Content-Type": "application/json"},
             ttl=timedelta(hours=23),
+            cache_if=lambda b: isinstance(b, dict) and bool(b.get("access_token")),
         )
         token = (res.data or {}).get("access_token")
         if not token:
@@ -64,6 +65,7 @@ class KisFetcher:
                 "Content-Type": "application/json",
             },
             ttl=timedelta(minutes=3),
+            cache_if=lambda b: isinstance(b, dict) and str(b.get("rt_cd", "0")) == "0",
         )
         body = res.data or {}
         if str(body.get("rt_cd", "0")) != "0":
