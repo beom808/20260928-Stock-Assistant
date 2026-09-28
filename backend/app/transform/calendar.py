@@ -38,6 +38,7 @@ CORE_MACRO_KW = (
     "gdp",
     "retail sales",
     "initial jobless claims",
+    "adp employment",
     "ism manufacturing",
     "ism services",
     "jolts",
