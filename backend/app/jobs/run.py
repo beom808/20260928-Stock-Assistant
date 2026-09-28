@@ -59,6 +59,12 @@ async def run_job(report_type: str, force: bool = False, settings: Settings | No
         store.finish_job(
             s, s.merge(run), payload["status"], "; ".join(payload["errors"])[:2000] or None
         )
+    # 실행 로그(GitHub Actions 등)에서 원인을 바로 볼 수 있도록 오류·참고 사항을 출력
+    # (API 오류 메시지만 담기며 키·비밀번호는 포함되지 않는다)
+    for e in payload["errors"]:
+        log.error("[%s] %s", report_type, e)
+    for w in payload["warnings"]:
+        log.warning("[%s] %s", report_type, w)
     if payload["status"] != "failed":
         await notify_report(
             settings,
