@@ -36,6 +36,8 @@ class Settings(BaseSettings):
 
     naver_client_id: str = ""
     naver_client_secret: str = ""
+    # hub = NAVER API HUB(네이버 클라우드, 신규 발급), legacy = 기존 개발자센터 키
+    naver_api: str = "hub"
     naver_daily_limit: int = 20000
 
     anthropic_api_key: str = ""

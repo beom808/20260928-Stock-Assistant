@@ -2,7 +2,7 @@
 
 | 순서 | 기능 | 비용 | 난이도 | 키를 넣는 곳 |
 |---|---|---|---|---|
-| 1 | 국내 당일 뉴스 (네이버 검색 API) | 무료 | ★ | GitHub Secrets |
+| 1 | 국내 당일 뉴스 (네이버 검색 API, NAVER API HUB) | 무료 제공량 내 무료(카드 등록 필요할 수 있음) | ★★ | GitHub Secrets |
 | 2 | AI 분류·한국어 요약 (Anthropic Claude API) | **유료(사용량)** | ★ | GitHub Secrets |
 | 3 | 미국 경제지표·FOMC 일정 (FMP) | 무료~유료(플랜 확인 필요) | ★ | GitHub Secrets |
 | 4 | 발행 알림 푸시 (Firebase Cloud Messaging) | 무료 플랜으로 가능한 것으로 알려짐 | ★★★ | GitHub Secrets + Netlify |
@@ -15,22 +15,27 @@
 
 ---
 
-## 1. 국내 당일 뉴스 — 네이버 검색 API (무료)
+## 1. 국내 당일 뉴스 — 네이버 검색 API (NAVER API HUB)
 
-1. https://developers.naver.com 접속 → 네이버 로그인
-2. 상단 **Application → 애플리케이션 등록**
-3. 입력
-   - 애플리케이션 이름: `stock-assistant` (자유)
-   - 사용 API: **검색** 선택
-   - 비로그인 오픈 API 서비스 환경: **WEB 설정** 추가 → 웹 서비스 URL: `https://stockassistant2.netlify.app`
-4. **등록하기** → 내 애플리케이션 화면에서 **Client ID**, **Client Secret** 확인
-5. GitHub Secrets 등록
+> 2026-07-31 부터 네이버 개발자센터(developers.naver.com)의 검색 API **신규 발급이 종료**되고
+> 네이버 클라우드 플랫폼의 **NAVER API HUB** 로 이관되었다(2027-06-30 개발자센터 종료 예정으로 알려짐).
+> 이 앱은 기본으로 NAVER API HUB 주소·인증 방식을 쓴다. 메뉴 이름은 바뀔 수 있으니 화면에서 확인.
+
+1. https://www.ncloud.com 가입/로그인 (네이버 클라우드 플랫폼)
+   - 가입 완료에 **결제수단(카드) 등록**이 필요하다는 자료가 있다. HUB 는 무료 제공량 안에서는 과금되지 않는 것으로 알려짐
+2. 콘솔 → 서비스 목록에서 **NAVER API HUB** 선택
+3. **API Key 발급** → **Client ID**, **Client Secret** 확인 (Secret 은 한 번만 보일 수 있으니 바로 복사)
+   - 사용할 API 선택 화면이 있으면 **검색(뉴스)** 포함
+   - (권장) 호출량 임계치(threshold) 설정이 있으면 하루 수백 건 수준으로 설정
+4. GitHub Secrets 등록
    - `NAVER_CLIENT_ID` = Client ID
    - `NAVER_CLIENT_SECRET` = Client Secret
-6. 확인: Run workflow(`afternoon`) → 로그에 `국내 뉴스 검색 실패` 경고가 없으면 성공.
+5. 확인: Run workflow(`afternoon`) → 로그에 `국내 뉴스 검색 실패` 경고가 없으면 성공.
    화면의 "오늘의 국내 주요 이슈"에 기사 목록(원문 링크 포함)이 나온다.
 
-> 한도: 검색 API 합산 하루 25,000회로 알려짐(이 앱은 하루 3회 수준).
+> 무료 제공량: 하루 25,000회로 알려짐(이 앱은 하루 수 회). 유료 전환 시 사전 공지 예정이라고 알려짐.
+> 기존 개발자센터에서 이미 받은 키가 있다면: GitHub → Settings → Secrets and variables → Actions →
+> **Variables** 탭 → `NAVER_API` = `legacy` (키 이름은 위와 같음).
 
 ## 2. AI 분류·한국어 요약 — Anthropic Claude API (유료)
 
@@ -108,7 +113,7 @@ AI 는 후보 목록 안에서 고르기만 하고, 원문 링크·제목·수�
 | 증상 | 확인할 곳 |
 |---|---|
 | 로그에 `…미설정` | 해당 Secret 이름 철자(대문자·밑줄) |
-| 네이버 `HTTP 401` | Client ID/Secret 바뀌지 않았는지, 사용 API 에 '검색'이 있는지 |
+| 네이버 `HTTP 401` | Client ID/Secret 바뀌지 않았는지, 키 발급처(HUB/개발자센터)와 `NAVER_API` 값이 맞는지 |
 | `LLM 분류 불가 (API error 401…)` | Anthropic 키, `…402/credit` 면 크레딧 잔액 |
 | FMP `HTTP 402/403` | 플랜 미지원(유료 필요) |
 | 알림 버튼이 안 보임 | Netlify 의 `NEXT_PUBLIC_FIREBASE_*` 5개 + 재배포 여부 |

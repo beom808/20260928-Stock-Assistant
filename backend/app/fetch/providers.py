@@ -60,7 +60,9 @@ def build_providers(
         kiwoom=KiwoomFetcher(
             kw, settings.kiwoom_app_key, settings.kiwoom_app_secret, settings.kiwoom_base_url
         ),
-        naver=NaverNewsFetcher(nv, settings.naver_client_id, settings.naver_client_secret),
+        naver=NaverNewsFetcher(
+            nv, settings.naver_client_id, settings.naver_client_secret, settings.naver_api
+        ),
         http=http,
         kiwoom_http=kiwoom_http,
     )

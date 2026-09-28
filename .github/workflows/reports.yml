@@ -101,6 +101,7 @@ jobs:
           ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-opus-5' }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          NAVER_API: ${{ vars.NAVER_API || 'hub' }}
           # 키움은 등록된 IP 에서만 요청을 받으므로 고정 IP 프록시(Fixie 등)를 경유 (비밀 정보)
           KIWOOM_PROXY_URL: ${{ secrets.KIWOOM_PROXY_URL }}
           # 발행 알림(FCM 웹푸시, 선택)
