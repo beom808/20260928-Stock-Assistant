@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-push = ["google-auth>=2.30"]
+push = ["google-auth[requests]>=2.30"]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "respx>=0.21", "black>=24", "ruff>=0.5"]
 
 [tool.black]

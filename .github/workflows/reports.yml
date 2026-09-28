@@ -10,7 +10,8 @@
 #   DATABASE_URL (필수), FINNHUB_API_KEY (필수 권장),
 #   KIWOOM_APP_KEY, KIWOOM_APP_SECRET, KIWOOM_PROXY_URL (국내 지수 — 키움 REST + 고정 IP 프록시),
 #   FMP_API_KEY, KIS_APP_KEY, KIS_APP_SECRET, ANTHROPIC_API_KEY,
-#   NAVER_CLIENT_ID, NAVER_CLIENT_SECRET (선택)
+#   NAVER_CLIENT_ID, NAVER_CLIENT_SECRET, FCM_PROJECT_ID, FCM_SERVICE_ACCOUNT_JSON (선택)
+#   설정 순서·방법: infra/optional-integrations.md
 
 name: reports
 
@@ -54,7 +55,7 @@ jobs:
           cache-dependency-path: backend/pyproject.toml
 
       - name: Install backend
-        run: pip install ./backend
+        run: pip install "./backend[push]"
 
       - name: Select reports
         id: select
@@ -96,10 +97,15 @@ jobs:
           KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
           KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # 모델 변경은 Settings → Secrets and variables → Actions → Variables 탭의 ANTHROPIC_MODEL
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL || 'claude-opus-5' }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           # 키움은 등록된 IP 에서만 요청을 받으므로 고정 IP 프록시(Fixie 등)를 경유 (비밀 정보)
           KIWOOM_PROXY_URL: ${{ secrets.KIWOOM_PROXY_URL }}
+          # 발행 알림(FCM 웹푸시, 선택)
+          FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
           TYPES: ${{ steps.select.outputs.types }}
           FLAGS: ${{ steps.select.outputs.flags }}
         run: |

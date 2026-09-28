@@ -42,7 +42,10 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-opus-5"
 
     fcm_project_id: str = ""
-    fcm_service_account_file: str = ""
+    fcm_service_account_file: str = ""  # 서비스 계정 키 파일 경로 (또는 아래 JSON 내용)
+    fcm_service_account_json: str = ""  # 서비스 계정 키 JSON 전체 (GitHub Secret 용, 비밀 정보)
+    # 알림을 눌렀을 때 열 웹 화면 주소 (FCM 링크는 전체 https 주소여야 함)
+    site_url: str = "https://stockassistant2.netlify.app"
 
     # 미국 대형주 워치리스트 (실적 캘린더 필터 / 기업 뉴스 수집용)
     us_megacap_watchlist: str = (

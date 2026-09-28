@@ -1,0 +1,15 @@
+{
+  "name": "한미 증시 리서치 보조",
+  "short_name": "증시 리서치",
+  "description": "전일 미국장·한국장 관전 포인트·국내 마감 리포트 (투자자문 아님)",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#111418",
+  "theme_color": "#2f5bd3",
+  "lang": "ko",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

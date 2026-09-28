@@ -27,6 +27,7 @@ backend/            Python 3.11+ (3.12 권장) · FastAPI · SQLAlchemy 2 · Pos
 frontend/           Next.js 16 (App Router) 웹 대시보드 — 카드형 UI, 원문 링크는 새 탭으로 열림
 infra/scheduler.md  클라우드 크론(UTC) 설정
 infra/render.md     백엔드 배포 가이드 (Render + Supabase + GitHub Actions)
+infra/optional-integrations.md  선택 기능(네이버 뉴스·AI 요약·FMP·푸시) 설정 순서
 render.yaml         Render Blueprint (API 서버, 무료 플랜)
 .github/workflows/reports.yml  리포트 예약 생성 (월~금 07:00 / 15:40 KST)
 netlify.toml        Netlify 설정 (frontend/ 빌드)
