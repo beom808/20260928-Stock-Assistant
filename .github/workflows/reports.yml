@@ -98,6 +98,11 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          # 키움(IP 등록 필요) 리포트를 Render 서버에서 실행하기 위한 값. 토큰이 없으면 여기서 직접 실행.
+          RENDER_API_URL: ${{ vars.RENDER_API_URL || 'https://stock-assistant-api-7oz1.onrender.com' }}
+          RENDER_JOB_TOKEN: ${{ secrets.RENDER_JOB_TOKEN }}
+          TYPES: ${{ steps.select.outputs.types }}
+          FLAGS: ${{ steps.select.outputs.flags }}
         run: |
           # DATABASE_URL 이 없으면 러너 안의 임시 SQLite 에 저장되고 사라지므로 즉시 실패시킨다
           if [ -z "$DATABASE_URL" ]; then
@@ -114,4 +119,22 @@ jobs:
               print(f"::error::DATABASE_URL 문제: {p}")
           sys.exit(1 if problems else 0)
           PY
-          python -m app.jobs.run ${{ steps.select.outputs.types }} ${{ steps.select.outputs.flags }}
+          # 키움 국내 지수가 필요한 리포트는 Render(고정 IP)에서 실행, 나머지는 여기서 실행
+          LOCAL=""; REMOTE=""
+          for t in $TYPES; do
+            if [ "$t" = "kr-close-and-calendar" ] && [ -n "$RENDER_JOB_TOKEN" ]; then
+              REMOTE="$REMOTE $t"
+            else
+              LOCAL="$LOCAL $t"
+            fi
+          done
+          STATUS=0
+          if [ -n "$LOCAL" ]; then
+            echo "GitHub 에서 실행:$LOCAL"
+            python -m app.jobs.run $LOCAL $FLAGS || STATUS=1
+          fi
+          if [ -n "$REMOTE" ]; then
+            echo "Render 서버에서 실행:$REMOTE"
+            python -m app.jobs.remote $REMOTE $FLAGS || STATUS=1
+          fi
+          exit $STATUS

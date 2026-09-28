@@ -73,7 +73,12 @@ async def run_job(report_type: str, force: bool = False, settings: Settings | No
             f"{payload['generated_at_kst']} 발행",
             f"/report/{report_type}",
         )
-    return {"status": payload["status"], "report_type": report_type}
+    return {
+        "status": payload["status"],
+        "report_type": report_type,
+        "errors": payload["errors"],
+        "warnings": payload["warnings"],
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
