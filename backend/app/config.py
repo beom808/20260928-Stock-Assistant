@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     fmp_base_url: str = "https://financialmodelingprep.com/stable"
     fmp_daily_limit: int = 240  # 무료 250/day 로 조사됨 → 여유분
     fmp_econ_calendar_tz: str = "UTC"
+    # FMP 경제캘린더는 무료 플랜 미지원(HTTP 402 확인) → 기본은 BEA·연준 공식 일정만 사용.
+    # 유료 플랜이면 true 로 켜서 함께 사용
+    fmp_econ_calendar: bool = False
 
     kis_app_key: str = ""
     kis_app_secret: str = ""

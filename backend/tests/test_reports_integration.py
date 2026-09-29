@@ -208,7 +208,17 @@ async def test_kr_close_and_calendar(sessions, no_sleep):
             200, json=[{"symbol": "NVDA", "date": "2026-09-30", "epsEstimated": 1.2}]
         )
     )
-    st = settings()
+    respx.get("https://apps.bea.gov/API/signup/release_dates.json").mock(
+        return_value=httpx.Response(
+            200, json={"Gross Domestic Product": {"release_dates": ["2026-09-30T12:30:00+00:00"]}}
+        )
+    )
+    fed = {"events": [{"title": "FOMC Meeting", "time": "2:00 p.m.", "month": "2026-09",
+                       "days": "30", "type": "FOMC"}]}  # fmt: skip
+    respx.get("https://www.federalreserve.gov/json/calendar.json").mock(
+        return_value=httpx.Response(200, json=fed)
+    )
+    st = settings(fmp_econ_calendar=True)
     p = build_providers(st, sessions)
     payload = await generate(KR_CLOSE, st, p, no_llm(), sessions, now=now)
     await p.aclose()
@@ -217,9 +227,17 @@ async def test_kr_close_and_calendar(sessions, no_sleep):
     kospi = d["indices"][0]
     assert kospi["close"] == 3050.12 and kospi["change"] == -12.3 and kospi["change_pct"] == -0.4
     rows = d["us_calendar"]["rows"]
-    assert [r["event"] for r in rows] == ["JOLTS Job Openings", "NVDA 실적 발표"]
+    assert [r["event"] for r in rows] == [
+        "JOLTS Job Openings",
+        "GDP 국내총생산 (BEA Gross Domestic Product)",
+        "FOMC 금리 결정·성명 (FOMC Meeting)",
+        "NVDA 실적 발표",
+    ]
     assert rows[0]["kst"] == "09/29 23:00 KST" and rows[0]["et"] == "09/29 10:00 EDT"
-    assert rows[1]["kst"] == "확정 시각 없음"
+    assert rows[1]["et"] == "09/30 08:30 EDT" and rows[1]["kind"] == "매크로지표"
+    assert rows[2]["kst"] == "10/01 03:00 KST" and rows[2]["kind"] == "FOMC" and rows[2]["note"]
+    assert rows[3]["kst"] == "확정 시각 없음"
+    assert payload["status"] == "ok"
     assert d["issues"] == []  # 네이버 키 미설정 → 가짜 이슈 없음
     assert any("국내 뉴스 검색 실패" in w for w in payload["warnings"])
     assert any("FMP 시도" in w for w in payload["warnings"])

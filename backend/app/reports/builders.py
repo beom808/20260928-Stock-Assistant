@@ -326,12 +326,20 @@ async def _kr_indices(ctx: Ctx) -> list[dict]:
 async def _us_calendar(ctx: Ctx) -> dict:
     et_today = to_et(ctx.now).date()
     d_to = et_today + timedelta(days=3)
-    econ = []
-    try:
-        econ = await ctx.providers.fmp.economic_calendar(et_today, d_to)
-        ctx.src("Financial Modeling Prep economic-calendar", "미국 경제지표·FOMC 일정")
-    except ApiError as e:
-        ctx.errors.append(f"경제캘린더 수집 실패: {e}")
+    # 경제지표·FOMC: BEA·연준 공식 일정(무료) — BLS(CPI·고용·PPI)는 자동 수집 차단으로 미포함
+    econ, failed = await ctx.providers.official.economic_calendar(et_today, d_to)
+    if len(failed) < 2:
+        ctx.src("BEA·연준 공식 발표 일정 (BLS 지표 미포함)", "미국 경제지표·FOMC 일정")
+    if ctx.settings.fmp_econ_calendar:
+        try:
+            econ += await ctx.providers.fmp.economic_calendar(et_today, d_to)
+            ctx.src("Financial Modeling Prep economic-calendar", "미국 경제지표 일정")
+        except ApiError as e:
+            failed.append(f"FMP 경제캘린더 수집 실패: {e}")
+    if len(failed) >= 2 and not econ:
+        ctx.errors.append("경제캘린더 수집 실패: " + " / ".join(failed))
+    else:
+        ctx.warnings.extend(failed)
     earnings: list[EarningsEvent] = []
     try:
         earnings = await ctx.providers.finnhub.earnings_calendar(et_today, d_to)

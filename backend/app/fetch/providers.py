@@ -14,6 +14,7 @@ from app.fetch.http import ApiClient
 from app.fetch.kis import KisFetcher
 from app.fetch.kiwoom import KiwoomFetcher
 from app.fetch.naver import NaverNewsFetcher
+from app.fetch.official import OfficialCalendarFetcher
 
 
 @dataclass
@@ -23,6 +24,7 @@ class Providers:
     kis: KisFetcher
     kiwoom: KiwoomFetcher
     naver: NaverNewsFetcher
+    official: OfficialCalendarFetcher
     http: httpx.AsyncClient
     kiwoom_http: httpx.AsyncClient | None = None  # 고정 IP 프록시 전용 클라이언트(설정 시)
 
@@ -51,6 +53,7 @@ def build_providers(
     )
     kw = ApiClient("kiwoom", sessions, kiwoom_http or http, per_minute=60)
     nv = ApiClient("naver", sessions, http, per_minute=60, daily_limit=settings.naver_daily_limit)
+    off = ApiClient("official", sessions, http, per_minute=20)
     return Providers(
         finnhub=FinnhubFetcher(fh, settings.finnhub_api_key, settings.finnhub_base_url),
         fmp=FmpFetcher(
@@ -63,6 +66,7 @@ def build_providers(
         naver=NaverNewsFetcher(
             nv, settings.naver_client_id, settings.naver_client_secret, settings.naver_api
         ),
+        official=OfficialCalendarFetcher(off),
         http=http,
         kiwoom_http=kiwoom_http,
     )

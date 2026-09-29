@@ -3,7 +3,7 @@
 - 시각 변환은 timeutil(IANA tz DB)만 사용 → 서머타임 자동 반영.
 - 실적발표는 BMO(장전)/AMC(장후)/DMH(장중)만 표시하고 구체 시각은 만들지 않는다("확정 시각 없음").
 - 경제지표 발표시각 자동 검증: CPI·고용·PCE 등은 08:30 ET, FOMC 금리결정은 14:00 ET 여야 정상.
-  어긋나면 API 타임존 설정(FMP_ECON_CALENDAR_TZ) 오류 가능성을 warnings 로 알린다.
+  어긋나면 일정 변경 또는 API 타임존 설정(FMP_ECON_CALENDAR_TZ) 오류 가능성을 warnings 로 알린다.
 """
 
 from __future__ import annotations
@@ -89,8 +89,8 @@ def check_release_times(events: list[EconEvent]) -> list[str]:
                 break
     if bad:
         return [
-            "경제캘린더 발표시각이 관례와 다릅니다 — API 타임존 설정(FMP_ECON_CALENDAR_TZ) 또는 "
-            "일정 변경 여부를 확인하세요: " + "; ".join(bad[:3])
+            "경제캘린더 발표시각이 관례와 다릅니다 — 일정 변경 여부 또는 API 타임존 설정"
+            "(FMP_ECON_CALENDAR_TZ)을 확인하세요: " + "; ".join(bad[:3])
         ]
     return []
 
@@ -122,7 +122,7 @@ def econ_rows(events: list[EconEvent], start: datetime, end: datetime) -> list[d
                 True,
             )
         note = None
-        if kind == "FOMC" and "press" not in ev.name.lower():
+        if kind == "FOMC" and ("meeting" in ev.name.lower() or "decision" in ev.name.lower()):
             note = "기자회견은 통상 성명 발표 30분 후"
         rows.append(
             {
@@ -169,8 +169,9 @@ def earnings_rows(
                 ref = et_wall_to_kst(ev.date_et, US_CLOSE_ET)
                 kst_s = f"{ref:%m/%d %H:%M} KST 이후(마감 후) · 확정 시각 없음"
             else:
-                o, c = et_wall_to_kst(ev.date_et, US_OPEN_ET), et_wall_to_kst(
-                    ev.date_et, US_CLOSE_ET
+                o, c = (
+                    et_wall_to_kst(ev.date_et, US_OPEN_ET),
+                    et_wall_to_kst(ev.date_et, US_CLOSE_ET),
                 )
                 kst_s = f"{o:%m/%d %H:%M}~{c:%H:%M} KST 사이 · 확정 시각 없음"
             sort_t = time(9, 0) if rel == "before" else time(16, 1) if rel == "after" else time(12)
