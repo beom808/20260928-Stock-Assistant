@@ -101,12 +101,12 @@ def _period(d: date, freq: str) -> str:
 def _value(v: float, fmt: str) -> str:
     if fmt == "pct":
         return f"{v:.1f}%"
-    if fmt == "thous_signed":
-        return f"{v:+,.0f}천 명"
-    if fmt == "thous":
-        return f"{v:,.0f}천 건"
+    if fmt == "thous_signed":  # 천 명 단위 → 만 명
+        return f"{v / 10:+,.1f}만 명"
+    if fmt == "thous":  # 천 건 단위 → 만 건
+        return f"{v / 10:,.1f}만 건"
     if fmt == "count":
-        return f"{v / 1000:,.0f}천 건"
+        return f"{v / 10000:,.1f}만 건"
     if fmt == "usd_mn":
         return f"{v / 100:,.0f}억 달러"
     return f"{v:g}"

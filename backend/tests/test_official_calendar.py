@@ -167,11 +167,15 @@ def test_format_history_monthly_weekly_quarterly_and_missing():
                                {"date": "2026-09-12", "value": "218000"}]}  # fmt: skip
     assert history_spec("신규 실업수당 청구 initial jobless claims (DOL)")[0] == "ICSA"
     assert format_history(claims, "W", "count", "주간 신규 청구") == (
-        "09/19주 231천 건 · 09/12주 218천 건 (주간 신규 청구, FRED)"
+        "09/19주 23.1만 건 · 09/12주 21.8만 건 (주간 신규 청구, FRED)"
     )
     gdp = {"observations": [{"date": "2026-04-01", "value": "3.1"}]}
     assert format_history(gdp, "Q", "pct", "실질 GDP 연율").startswith("26년 2Q 3.1%")
     assert format_history({"observations": []}, "M", "pct", "x") is None
+    jolts = {"observations": [{"date": "2026-07-01", "value": "7271"}]}
+    assert format_history(jolts, "M", "thous", "구인 건수").startswith("7월 727.1만 건")
+    nfp = {"observations": [{"date": "2026-08-01", "value": "-12"}]}
+    assert format_history(nfp, "M", "thous_signed", "비농업").startswith("8월 -1.2만 명")
     assert history_spec("FOMC 금리 결정·성명 (FOMC Meeting)") is None
 
 
