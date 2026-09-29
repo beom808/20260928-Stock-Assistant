@@ -16,5 +16,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version-file: backend/.python-version
-      - run: pip install "httpx>=0.28"
+      - run: pip install ./backend
       - run: python backend/scripts/probe_calendars.py
+      - name: FRED release names
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python backend/scripts/probe_fred.py
