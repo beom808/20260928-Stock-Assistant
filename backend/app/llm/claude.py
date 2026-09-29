@@ -199,10 +199,12 @@ class ClaudeAnalyst:
             "additionalProperties": False,
         }
         prompt = (
-            f"다음은 오늘 국내 증시 관련 뉴스 후보입니다. 시장 전체에 중요한 순서로 {k}건을 "
-            "고르고(같은 사건을 다룬 기사는 하나만, 서로 다른 주제로 채울 것. 후보가 부족할 때만 "
-            f"{k}건 미만), 입력 내용만으로 한 줄 요약(80자 이내)을 쓰세요.\n\n"
+            "다음은 오늘 국내 증시 관련 뉴스 후보입니다. "
+            f"한국 증시 전체에 중요한 순서로 {k + 3}건을 고르세요. "
+            "같은 사건을 다룬 기사는 하나만 고르고 나머지는 서로 다른 주제로 채우되, "
+            "해외 개별 종목 기사처럼 한국 증시와 무관한 것은 제외하세요(후보가 부족할 때만 적게). "
+            "각 기사에 입력 내용만으로 한 줄 요약(80자 이내)을 쓰세요.\n\n"
             + json.dumps(candidates, ensure_ascii=False)
         )
         data = await self._structured(prompt, schema)
-        return data.get("items", [])[:k]
+        return data.get("items", [])[: k + 3]

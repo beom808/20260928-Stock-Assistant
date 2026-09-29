@@ -50,7 +50,7 @@ def _dry_run_summary(payload: dict) -> str:
             for i in data.get("issues", [])
         ],
         "calendar_rows": [
-            {k: r.get(k) for k in ("event", "kind", "et", "kst", "provider")}
+            {k: r.get(k) for k in ("event", "kind", "et", "kst", "previous", "provider")}
             for r in (data.get("us_calendar") or {}).get("rows", [])
         ],
     }

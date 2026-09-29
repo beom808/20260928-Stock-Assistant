@@ -255,6 +255,8 @@ async def _kr_issues(ctx: Ctx) -> tuple[list[dict], str]:
             n = by_id.get(r.get("id", ""))
             if n and all(n.id != p[0].id for p in picked):
                 picked.append((n, (r.get("summary_ko") or "").strip(), "llm"))
+            if len(picked) >= KR_ISSUE_COUNT:  # 여유 있게 받은 뒤 상위 5건만
+                break
         method = "llm"
     except LLMUnavailable as e:
         ctx.warnings.append(f"LLM 이슈 선정 불가 → 최신순 선정 ({e})")
