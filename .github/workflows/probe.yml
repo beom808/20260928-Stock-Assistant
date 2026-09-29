@@ -17,22 +17,10 @@ jobs:
         with:
           python-version-file: backend/.python-version
       - run: pip install "./backend[push]"
-      - run: python backend/scripts/probe_calendars.py
-      - name: FRED release names
+      # 이전 점검(probe_calendars·fred·fmp·fcm·fx)은 완료 — 필요 시 아래처럼 단계를 추가해 재실행
+      - name: Kiwoom investor net-buy (ka10051)
         env:
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-        run: python backend/scripts/probe_fred.py
-      - name: FMP index EOD
-        env:
-          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-        run: python backend/scripts/probe_fmp.py
-      - name: FCM credentials (no message sent)
-        env:
-          FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
-          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
-        run: python backend/scripts/probe_fcm.py
-      - name: USD/KRW sources
-        env:
-          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
-          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-        run: python backend/scripts/probe_fx.py
+          KIWOOM_APP_KEY: ${{ secrets.KIWOOM_APP_KEY }}
+          KIWOOM_APP_SECRET: ${{ secrets.KIWOOM_APP_SECRET }}
+          KIWOOM_PROXY_URL: ${{ secrets.KIWOOM_PROXY_URL }}
+        run: python backend/scripts/probe_kiwoom_flows.py
