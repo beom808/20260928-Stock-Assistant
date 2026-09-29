@@ -1,65 +1,48 @@
 """공식 경제일정 출처의 실제 응답 형식을 확인하는 점검 스크립트 (GitHub Actions 수동 실행용).
 
-개발 환경에서는 bls.gov / bea.gov / federalreserve.gov 에 접근할 수 없어 형식을 직접 볼 수 없다.
-각 URL 의 HTTP 상태·Content-Type·앞부분과, 안내 페이지에 있는 .ics/.json 링크를 출력한다.
+개발 환경에서는 bea.gov / federalreserve.gov / api.stlouisfed.org 에 접근할 수 없어 형식을 직접
+볼 수 없다. 1차 점검 결과: BLS 는 자동 요청 차단(403), BEA JSON·연준 calendar.json 은 정상.
 """
 
 from __future__ import annotations
 
-import re
+import collections
+import json
 import sys
 
 import httpx
 
-UA = {
-    "browser": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/130.0 Safari/537.36",
-    "bot": "stock-assistant/1.0 (+https://github.com/beom808/20260928-Stock-Assistant)",
-}
-PAGES = [
-    "https://www.bls.gov/help/hlpical.htm",
-    "https://www.bls.gov/schedule/news_release/cpi.htm",
-    "https://www.bea.gov/news/schedule/icalendar",
-    "https://www.bea.gov/news/schedule",
-    "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
-]
-CANDIDATES = [
-    "https://www.bls.gov/schedule/news_release/bls.ics",
-    "https://apps.bea.gov/API/signup/release_dates.json",
-    "https://www.federalreserve.gov/json/calendar.json",
-]
-LINK = re.compile(r"""href=["']([^"']+\.(?:ics|json)[^"']*)["']""", re.I)
-
-
-def show(c: httpx.Client, url: str, n: int = 1500) -> str:
-    try:
-        r = c.get(url)
-    except httpx.HTTPError as e:
-        print(f"\n=== {url}\n  오류: {type(e).__name__}: {e}")
-        return ""
-    ctype = r.headers.get("content-type")
-    print(f"\n=== {url}\n  HTTP {r.status_code}  {ctype}  {len(r.content)}B")
-    print("  final:", r.url)
-    print(r.text[:n])
-    return r.text if r.status_code == 200 else ""
+UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0"
 
 
 def main() -> int:
-    found: set[str] = set()
-    for label, ua in UA.items():
-        print(f"\n########## User-Agent: {label}")
-        with httpx.Client(headers={"User-Agent": ua}, timeout=20, follow_redirects=True) as c:
-            for p in PAGES:
-                html = show(c, p, 300)
-                for href in LINK.findall(html):
-                    found.add(str(httpx.URL(p).join(href)))
-    print("\n########## 안내 페이지에서 찾은 .ics/.json 링크:")
-    for u in sorted(found):
-        print(" ", u)
-    opts = {"headers": {"User-Agent": UA["browser"]}, "timeout": 20, "follow_redirects": True}
-    with httpx.Client(**opts) as c:
-        for u in list(sorted(found))[:8] + CANDIDATES:
-            show(c, u, 2500)
+    with httpx.Client(headers={"User-Agent": UA}, timeout=30, follow_redirects=True) as c:
+        bea = c.get("https://apps.bea.gov/API/signup/release_dates.json").json()
+        print("BEA 발표 종류:")
+        for name, v in bea.items():
+            future = [d for d in v.get("release_dates", []) if d >= "2026-09-01"]
+            print(f"  {name}: {future[:3]}")
+
+        r = c.get("https://www.federalreserve.gov/json/calendar.json")
+        ev = json.loads(r.content.decode("utf-8-sig"))["events"]
+        print("\n연준 calendar.json 이벤트 수:", len(ev))
+        print("type 분포:", collections.Counter(e.get("type") for e in ev).most_common())
+        print("키 종류:", sorted({k for e in ev for k in e}))
+        fomc = [e for e in ev if "FOMC" in (e.get("type", "") + e.get("title", ""))]
+        print(f"\nFOMC 관련 {len(fomc)}건 (앞 15건):")
+        for e in fomc[:15]:
+            print(" ", json.dumps(e, ensure_ascii=False)[:300])
+        soon = [e for e in ev if e.get("month") in ("2026-09", "2026-10")]
+        print(f"\n2026-09~10 이벤트 {len(soon)}건 중 Speeches 제외:")
+        for e in soon:
+            if e.get("type") != "Speeches":
+                print(" ", json.dumps(e, ensure_ascii=False)[:300])
+
+        r = c.get(
+            "https://api.stlouisfed.org/fred/releases/dates",
+            params={"file_type": "json", "api_key": "invalid"},
+        )
+        print("\nFRED 접근 확인(잘못된 키):", r.status_code, r.text[:200])
     return 0
 
 
