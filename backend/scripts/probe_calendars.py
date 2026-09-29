@@ -20,6 +20,9 @@ def main() -> int:
         bea = c.get("https://apps.bea.gov/API/signup/release_dates.json").json()
         print("BEA 발표 종류:")
         for name, v in bea.items():
+            if not isinstance(v, dict):
+                print(f"  (dict 아님) {name}: {str(v)[:120]}")
+                continue
             future = [d for d in v.get("release_dates", []) if d >= "2026-09-01"]
             print(f"  {name}: {future[:3]}")
 
