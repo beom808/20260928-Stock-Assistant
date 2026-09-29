@@ -38,3 +38,5 @@ jobs:
             -H "Origin: https://stockassistant2.netlify.app" \
             -H "Access-Control-Request-Method: POST" \
             -H "Access-Control-Request-Headers: content-type" | grep -i -E "^HTTP|access-control-allow" || true
+      - name: Live report summary
+        run: python backend/scripts/probe_live_reports.py
