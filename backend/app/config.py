@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     naver_daily_limit: int = 20000
 
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-opus-5"
+    anthropic_model: str = "claude-opus-5-5"
 
     fcm_project_id: str = ""
     fcm_service_account_file: str = ""  # 서비스 계정 키 파일 경로 (또는 아래 JSON 내용)

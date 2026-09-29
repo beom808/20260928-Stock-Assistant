@@ -96,7 +96,7 @@ npm install && npm run dev         # http://localhost:3000
 | 키움 REST API `ka20001` 업종현재가 | 코스피(001)·코스닥(101) — 기본 | 공개 예제·명세로 대조(공식 포털 원문은 개발 환경에서 접근 불가). 시장구분 코드가 자료마다 달라 후보를 순서대로 시도하고 정상 응답만 채택 |
 | KIS Open API `inquire-index-price` (tr_id `FHPUP02100000`) | 코스피(0001)·코스닥(1001) — 키움 실패 시 대안 | 공식 GitHub 예제(koreainvestment/open-trading-api)로 엔드포인트·필드 확인. 접근토큰은 23시간 캐시(발급 빈도 제한 대응). **토큰이 DB `api_cache` 에 저장되므로 DB 접근 권한 관리 필요** |
 | 네이버 검색 API(뉴스) — NAVER API HUB `/search/v1/news` | 국내 당일 이슈 | 2026-07-31 개발자센터 신규 발급 종료 → 네이버 클라우드 NAVER API HUB 로 이관(2차 자료). 기존 개발자센터 키는 `NAVER_API=legacy`. 무료 25,000 req/day(2차 자료). 미설정 시 이슈 섹션은 비어 있음(가짜 이슈 생성 안 함) |
-| Anthropic Claude API | 분류·요약·관련도 추론 | 기본 모델 `claude-opus-5`(`ANTHROPIC_MODEL` 로 변경 가능), 거절 시 서버측 fallback(`fallbacks: "default"`). 키가 없으면 규칙기반으로 동작 |
+| Anthropic Claude API | 분류·요약·관련도 추론 | 기본 모델 `claude-opus-5-5`(`ANTHROPIC_MODEL` 로 변경 가능), 거절 시 서버측 fallback(`fallbacks: "default"`). 키가 없으면 규칙기반으로 동작 |
 
 ## 알려진 한계
 

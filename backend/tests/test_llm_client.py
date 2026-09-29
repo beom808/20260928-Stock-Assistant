@@ -21,7 +21,7 @@ def msg(text: str, stop: str = "end_turn") -> dict:
         "id": "msg_1",
         "type": "message",
         "role": "assistant",
-        "model": "claude-opus-5",
+        "model": "claude-opus-5-5",
         "content": [{"type": "text", "text": text}],
         "stop_reason": stop,
         "stop_sequence": None,
@@ -41,7 +41,7 @@ def analyst(handler) -> tuple[ClaudeAnalyst, list]:
         max_retries=0,
         http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(_h)),
     )
-    return ClaudeAnalyst(api_key="test-key", model="claude-opus-5", client=client), seen
+    return ClaudeAnalyst(api_key="test-key", model="claude-opus-5-5", client=client), seen
 
 
 async def test_request_shape_and_parse():
@@ -49,7 +49,7 @@ async def test_request_shape_and_parse():
     assert await a.rank_us_news(CANDS, ["semiconductors"]) == []
     req = seen[-1]
     body = json.loads(req.content)
-    assert body["model"] == "claude-opus-5"
+    assert body["model"] == "claude-opus-5-5"
     assert body["fallbacks"] == "default"
     assert body["output_config"]["format"]["type"] == "json_schema"
     item = body["output_config"]["format"]["schema"]["properties"]["items"]["items"]

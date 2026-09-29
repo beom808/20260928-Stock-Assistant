@@ -43,19 +43,19 @@
 붙인다. 한국 기업 관련도에 AI 추론이 더해진다(화면에 `AI 요약`/`AI 추론` 배지로 구분).
 AI 는 후보 목록 안에서 고르기만 하고, 원문 링크·제목·수치는 항상 뉴스 API 원본을 쓴다.
 
-1. https://console.anthropic.com 가입/로그인
-2. **Billing(결제)** 에서 크레딧 충전 (최소 금액·결제 방식은 화면에서 확인)
-3. (권장) 월 사용 한도 설정: 콘솔의 **Limits / Spend limits** 메뉴 (메뉴 이름은 화면에서 확인)
+1. https://platform.claude.com (Claude Console) 가입/로그인
+2. **Billing(결제)** 에서 카드 등록·크레딧 충전 (최소 금액·결제 방식은 화면에서 확인)
+3. (권장) 월 사용 한도 설정: **Settings → Limits** (https://platform.claude.com/settings/limits, 메뉴 이름은 화면에서 확인)
 4. **API Keys → Create Key** → 키는 한 번만 보이므로 바로 복사
 5. GitHub Secrets 등록: `ANTHROPIC_API_KEY` = 키
-6. (선택) 모델 변경: 기본 `claude-opus-5`. 비용을 줄이려면 GitHub → Settings → Secrets and variables →
-   Actions → **Variables** 탭 → `ANTHROPIC_MODEL` = `claude-sonnet-5`
+6. (선택) 모델 변경: 기본 `claude-opus-5-5`. 비용을 줄이려면 GitHub → Settings → Secrets and variables →
+   Actions → **Variables** 탭 → `ANTHROPIC_MODEL` = `claude-sonnet-5-5`
 7. 확인: Run workflow(`all`) → 화면 뉴스 카드에 한국어 제목과 `AI 요약` 배지가 보이면 성공.
    로그에 `LLM 분류 불가` 경고가 있으면 그 사유를 확인.
 
-> **비용 추정(확정 아님)**: 하루 약 입력 2만·출력 1.5~2만 토큰으로 추정.
-> 요금표(2026-06 기준 자료: Opus 5 입력 $5/출력 $25, Sonnet 5 입력 $2/출력 $10 — 100만 토큰당)로 계산하면
-> 평일 22일 기준 **Opus 5 약 월 $10 안팎, Sonnet 5 약 월 $4 안팎**. 실제 금액은 콘솔 Usage 에서 확인.
+> **비용 추정(확정 아님)**: 하루 약 입력 2만·출력 1.5~2만 토큰으로 추정(사고 토큰은 출력으로 과금되어 더 늘 수 있음).
+> 공식 요금표(2026-09 확인: Opus 5.5 입력 $4/출력 $20, Sonnet 5.5 입력 $2/출력 $10 — 100만 토큰당)로 계산하면
+> 평일 22일 기준 **Opus 5.5 약 월 $8~11, Sonnet 5.5 약 월 $4~5**. 실제 금액은 콘솔 Usage 에서 확인.
 
 ## 3. 미국 경제지표·FOMC 일정 — FMP
 

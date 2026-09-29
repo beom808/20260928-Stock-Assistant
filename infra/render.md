@@ -50,7 +50,7 @@
 | `FMP_API_KEY` | https://financialmodelingprep.com | 선택 — 미국 지수·경제캘린더 (일부 유료일 수 있음) |
 | `KIWOOM_APP_KEY`, `KIWOOM_APP_SECRET` | https://openapi.kiwoom.com (키움 계좌로 API 사용 신청 후 발급) | 권장 — 코스피·코스닥 |
 | `KIS_APP_KEY`, `KIS_APP_SECRET` | https://apiportal.koreainvestment.com | 선택 — 코스피·코스닥 대안 (키움 실패 시 사용) |
-| `ANTHROPIC_API_KEY` | https://console.anthropic.com | 선택 — AI 요약 (사용량 과금) |
+| `ANTHROPIC_API_KEY` | https://platform.claude.com (Claude Console) | 선택 — AI 요약 (사용량 과금) |
 | `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` | 네이버 클라우드 NAVER API HUB (https://www.ncloud.com) | 선택 — 국내 당일 이슈 |
 
 없는 키는 등록하지 않으면 된다(해당 섹션만 "수집 실패"로 표시).
