@@ -22,3 +22,7 @@ jobs:
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: python backend/scripts/probe_fred.py
+      - name: FMP index EOD
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: python backend/scripts/probe_fmp.py
