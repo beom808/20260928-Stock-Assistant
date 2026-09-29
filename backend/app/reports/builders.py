@@ -333,6 +333,8 @@ async def _us_calendar(ctx: Ctx) -> dict:
         ctx.src("BEA·연준 공식 발표 일정", "미국 경제지표·FOMC 일정")
     if official.fred_api_key and not any(f.startswith("FRED") for f in failed):
         ctx.src("FRED 발표일 (BLS 등, 시각은 관례)", "CPI·고용·PPI 등 발표일")
+        fred = sorted(f"{e.name} {e.date_et}" for e in econ if e.provider.startswith("FRED"))
+        log.info("FRED 발표일(%s~%s ET) 채택: %s", et_today, d_to, fred)
         log.info("FRED 기간 내 기타 발표(표 제외): %s", official.fred_other_releases)
     elif not official.fred_api_key:
         ctx.src("CPI·고용·PPI(BLS) 일정 미포함 — FRED_API_KEY 미설정", "안내")
