@@ -152,7 +152,7 @@ def test_dry_run_summary_lists_issues_and_calendar():
                 "indices": [{"name": "KOSPI", "close": 1.0, "provider": "키움증권 REST API"}],
                 "issue_method": "llm",
                 "issues": [{"title": "t", "summary": "s", "summary_origin": "llm", "url": "u"}],
-                "calendar": {"rows": [{"event": "CPI", "kind": "경제지표", "et": "e", "kst": "k"}]},
+                "us_calendar": {"rows": [{"event": "CPI", "kind": "경제지표", "et": "e"}]},
             },
         }
     )
@@ -336,3 +336,47 @@ async def test_close_quote_same_session_has_no_flag(sessions, no_sleep):
     payload = await generate(US_CLOSE, st, p, no_llm(), sessions, now=NOW)
     await p.aclose()
     assert all("⚠" not in (i.get("note") or "") for i in payload["data"]["indices"])
+
+
+async def test_kr_issues_topped_up_when_llm_picks_fewer(sessions):
+    """LLM 이 5건보다 적게 고르면 나머지를 최신순(중복 제목 제외)으로 채운다."""
+    from types import SimpleNamespace
+
+    from app.reports.builders import KR_ISSUE_COUNT, Ctx, _kr_issues
+    from app.schemas import NewsItem
+    from tests.helpers import FakeAnalyst
+
+    now = datetime(2026, 9, 29, 15, 40, tzinfo=KST).astimezone(UTC)
+    heads = [
+        "코스피 급락 마감",
+        "코스피 급락 마감",
+        "국고채 금리 상승",
+        "환율 1365원",
+        "반도체 약세",
+        "삼성전기 증설",
+        "SK 상장설",
+    ]
+    items = [
+        NewsItem(
+            id=f"n{i}",
+            headline=h,
+            summary=f"{h} 요약.",
+            url=f"https://e.com/{i}",
+            published_at=now,
+            provider="네이버",
+        )
+        for i, h in enumerate(heads)
+    ]
+
+    async def search(q):
+        return items if q == "코스피 마감" else []
+
+    providers = SimpleNamespace(naver=SimpleNamespace(search=search))
+    analyst = FakeAnalyst(issues=[{"id": "n6", "summary_ko": "AI 요약"}])
+    ctx = Ctx(settings(), providers, analyst, sessions, now=now)
+    out, method = await _kr_issues(ctx)
+    assert method == "llm" and len(out) == KR_ISSUE_COUNT
+    assert out[0]["title"] == "SK 상장설" and out[0]["summary_origin"] == "llm"
+    titles = [o["title"] for o in out]
+    assert len(set(titles)) == len(titles)  # 같은 제목은 한 번만
+    assert all(o["summary_origin"] == "api" for o in out[1:])

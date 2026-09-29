@@ -51,7 +51,7 @@ def _dry_run_summary(payload: dict) -> str:
         ],
         "calendar_rows": [
             {k: r.get(k) for k in ("event", "kind", "et", "kst", "provider")}
-            for r in (data.get("calendar") or {}).get("rows", [])
+            for r in (data.get("us_calendar") or {}).get("rows", [])
         ],
     }
     return json.dumps(out, ensure_ascii=False, indent=1)

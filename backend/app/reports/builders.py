@@ -258,16 +258,16 @@ async def _kr_issues(ctx: Ctx) -> tuple[list[dict], str]:
         method = "llm"
     except LLMUnavailable as e:
         ctx.warnings.append(f"LLM 이슈 선정 불가 → 최신순 선정 ({e})")
-    if not picked:
-        seen: set[str] = set()
-        for n in items:
-            k = norm_headline(n.headline)[:30]
-            if k in seen:
-                continue
-            seen.add(k)
-            picked.append((n, first_sentence(n.summary), "api"))
-            if len(picked) >= KR_ISSUE_COUNT:
-                break
+    # LLM 이 덜 골랐거나(비슷한 주제를 합치는 경우 등) 쓸 수 없으면 최신순으로 채운다
+    seen = {norm_headline(p[0].headline)[:30] for p in picked}
+    for n in items:
+        if len(picked) >= KR_ISSUE_COUNT:
+            break
+        k = norm_headline(n.headline)[:30]
+        if k in seen:
+            continue
+        seen.add(k)
+        picked.append((n, first_sentence(n.summary), "api"))
     out = [
         {
             "rank": i,
