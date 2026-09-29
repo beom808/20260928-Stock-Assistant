@@ -1,8 +1,8 @@
 # 리포트 자동 생성 (무료 GitHub Actions 예약 실행)
 #
 # 일정은 UTC 기준. 한국(KST)은 서머타임이 없어 연중 고정.
-#   월~금 07:00 KST = "0 22 * * 0-4"  → 전일 미국 마감 → 한국장 관전 포인트
-#   월~금 15:40 KST = "40 6 * * 1-5"  → 국내 장 마감 + 익일 미국 캘린더
+#   월~금 07:00 KST = "0 22 * * 0-4"  → 전일 미국 마감 → 국장 관전 포인트
+#   월~금 15:40 KST = "40 6 * * 1-5"  → 국장 마감 + 익일 미국 캘린더
 # GitHub 예약 실행은 부하에 따라 수 분 이상 늦게 시작될 수 있다.
 # 한국 휴장일에는 작업이 스스로 건너뛴다(skipped). 수동 실행: Actions 탭 → Run workflow.
 #
@@ -45,14 +45,14 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: reports
-  cancel-in-progress: false
-
 jobs:
   generate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # 리포트 생성만 직렬화한다(아래 keepalive 가 도는 동안에도 테스트 실행은 바로 시작되도록)
+    concurrency:
+      group: reports
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
 
@@ -103,7 +103,7 @@ jobs:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           FMP_ECON_CALENDAR: ${{ vars.FMP_ECON_CALENDAR || 'false' }}
-          # CPI·고용·PPI 발표일 (FRED 무료 키, 선택)
+          # CPI·고용·PPI 발표일·최근 수치, 미 10년물·달러지수 (FRED 무료 키, 선택)
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
           KIWOOM_APP_KEY: ${{ secrets.KIWOOM_APP_KEY }}
           KIWOOM_APP_SECRET: ${{ secrets.KIWOOM_APP_SECRET }}
@@ -144,3 +144,23 @@ jobs:
           sys.exit(1 if problems else 0)
           PY
           python -m app.jobs.run $TYPES $FLAGS
+
+  # 발행 알림을 받고 화면을 열 때 Render 무료 서버가 잠들어 있으면(15분 무요청 시 절전) 첫 로딩이
+  # 수십 초 걸린다. 발행 후 90분 동안 10분 간격으로 /health 를 호출해 깨워 둔다.
+  # 공개 저장소의 GitHub Actions 는 무료이며, 테스트 실행(dry_run)에서는 건너뛴다.
+  keepalive:
+    needs: generate
+    if: ${{ github.event_name == 'schedule' || !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      API_BASE_URL: ${{ vars.API_BASE_URL || 'https://stock-assistant-api-7oz1.onrender.com' }}
+    steps:
+      - name: Keep Render API awake for 90 minutes
+        run: |
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$API_BASE_URL/health" || true)
+            echo "$(date -u +%H:%M:%S) UTC /health → $code"
+            [ "$i" -lt 10 ] && sleep 600
+          done
+          exit 0

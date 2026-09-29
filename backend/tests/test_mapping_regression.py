@@ -6,7 +6,7 @@ import json
 
 from app.config import Settings
 from app.data.sector_map import KR_UNIVERSE, SECTORS
-from app.transform.kr_mapping import WEIGHTS, map_to_korea, relevance
+from app.transform.kr_mapping import WEIGHTS, label_for, map_to_korea, relevance
 from app.transform.us_close import rank_news
 from tests.helpers import FIXTURES, FakeAnalyst, load_sample_news, no_llm
 
@@ -45,19 +45,43 @@ async def test_sector_company_mapping_matches_expected():
         assert rels == sorted(rels, reverse=True)
         for c in s["companies"]:
             assert c["rationale"]  # 판단 근거 1줄 필수
-            assert set(c["scores"]) == set(WEIGHTS)
+            assert set(c["magnitudes"]) == set(WEIGHTS)
+            # LLM 이 없으면 수혜/악재 방향을 추측하지 않는다
+            assert c["score"] is None and c["scores"] is None and c["label"] == "방향 미판정"
 
 
 async def test_ticker_edge_rationale_takes_priority():
     _, _, mapping = await _rules_pipeline()
     semis = next(s for s in mapping["sectors"] if s["key"] == "semiconductors")
     hynix = next(c for c in semis["companies"] if c["code"] == "000660")
-    assert "HBM" in hynix["rationale"] and hynix["scores"]["supply_chain"] == 1.0
+    assert "HBM" in hynix["rationale"] and hynix["magnitudes"]["supply_chain"] == 1.0
 
 
-def test_theme_has_lowest_weight():
+def test_theme_has_lowest_weight_and_no_same_industry():
+    assert "same_industry" not in WEIGHTS  # 동일산업은 점수에서 제외 (2026-09-29 요청)
     assert WEIGHTS["theme"] == min(WEIGHTS.values())
     assert abs(sum(WEIGHTS.values()) - 1.0) < 1e-9
+    assert [round(WEIGHTS[c] * 100) for c in ("supply_chain", "sensitivity", "theme")] == [
+        46,
+        38,
+        15,
+    ]
+
+
+def test_score_labels():
+    assert [label_for(v) for v in (80, 30, 29, 10, 9, 0, -9, -10, -29, -30, None)] == [
+        "수혜",
+        "수혜",
+        "약한 수혜",
+        "약한 수혜",
+        "중립",
+        "중립",
+        "중립",
+        "약한 악재",
+        "약한 악재",
+        "악재",
+        "방향 미판정",
+    ]
 
 
 def test_static_table_codes_are_in_universe():
@@ -68,47 +92,20 @@ def test_static_table_codes_are_in_universe():
 
 async def test_hybrid_blends_llm_and_drops_unknown_codes():
     ranked, _, _ = await _rules_pipeline()
+
+    def rel(code, sc, se, th, why, key="energy_oil"):
+        return {"sector_key": key, "code": code, "supply_chain": sc, "sensitivity": se,
+                "theme": th, "rationale": why}  # fmt: skip
+
     llm = FakeAnalyst(
         kr=[
-            # 정적 관계가 있는 쌍 → 0.6*정적 + 0.4*LLM
-            {
-                "sector_key": "energy_oil",
-                "code": "010950",
-                "same_industry": 0.5,
-                "supply_chain": 0.0,
-                "sensitivity": 0.5,
-                "theme": 0.0,
-                "rationale": "정유",
-            },
-            # LLM 만 제시한 쌍 → 0.8 할인, 근거는 AI 추론 표기
-            {
-                "sector_key": "energy_oil",
-                "code": "005490",
-                "same_industry": 0.0,
-                "supply_chain": 0.5,
-                "sensitivity": 1.0,
-                "theme": 0.5,
-                "rationale": "원가 영향",
-            },
+            # 정적 관계가 있는 쌍 → 크기 0.6*정적 + 0.4*|LLM|, 부호는 LLM(악재)
+            rel("010950", 0.0, -0.5, 0.0, "유가 급등에 정제마진 악화"),
+            # LLM 만 제시한 쌍 → 크기 0.8 할인, 수혜, 근거는 AI 추론 표기
+            rel("005490", 0.5, 1.0, 0.5, "원가 영향"),
             # 후보에 없는 종목/섹터 → 폐기
-            {
-                "sector_key": "energy_oil",
-                "code": "999999",
-                "same_industry": 1,
-                "supply_chain": 1,
-                "sensitivity": 1,
-                "theme": 1,
-                "rationale": "가짜",
-            },
-            {
-                "sector_key": "not_active",
-                "code": "005930",
-                "same_industry": 1,
-                "supply_chain": 1,
-                "sensitivity": 1,
-                "theme": 1,
-                "rationale": "x",
-            },
+            rel("999999", 1, 1, 1, "가짜"),
+            rel("005930", 1, 1, 1, "x", key="not_active"),
         ]
     )
     mapping = await map_to_korea(ranked, llm)
@@ -117,12 +114,25 @@ async def test_hybrid_blends_llm_and_drops_unknown_codes():
     by = {c["code"]: c for c in energy["companies"]}
     assert "999999" not in by
     soil = by["010950"]
-    assert soil["scores"]["same_industry"] == round(0.6 * 0.9 + 0.4 * 0.5, 3)
+    static = next(r for r in SECTORS["energy_oil"].relations if r.code == "010950")
+    mag = round(0.6 * static.sensitivity + 0.4 * 0.5, 3)
+    assert soil["magnitudes"]["sensitivity"] == mag
+    assert soil["scores"]["sensitivity"] == -round(100 * mag)  # 악재 → 음수
+    assert soil["scores"]["supply_chain"] == 0  # LLM 이 영향 없음(0) → 0점
+    assert soil["score"] < 0 and soil["label"] in ("악재", "약한 악재")
     assert soil["rationale_origin"] == "rule"
     posco = by["005490"]
     assert posco["rationale_origin"] == "llm"
-    assert posco["scores"]["sensitivity"] == 0.8
-    assert posco["relevance"] == relevance(posco["scores"])
+    assert posco["magnitudes"]["sensitivity"] == 0.8
+    assert posco["scores"] == {"supply_chain": 40, "sensitivity": 80, "theme": 40}
+    assert (
+        posco["score"] == round(sum(WEIGHTS[c] * posco["scores"][c] for c in WEIGHTS))
+        and posco["label"] == "수혜"
+    )
+    assert posco["relevance"] == relevance(posco["magnitudes"])
+    # 영향이 큰 순(|점수|)
+    scored = [abs(c["score"]) for c in energy["companies"] if c["score"] is not None]
+    assert scored == sorted(scored, reverse=True)
 
 
 async def test_llm_cannot_inject_unknown_news_or_tickers():

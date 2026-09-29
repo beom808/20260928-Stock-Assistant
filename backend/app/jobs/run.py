@@ -44,17 +44,70 @@ def _dry_run_summary(payload: dict) -> str:
             {k: i.get(k) for k in ("name", "close", "change", "change_pct", "provider", "error")}
             for i in data.get("indices", [])
         ],
+        "fx": data.get("fx"),
+        "macro": data.get("macro"),
+        "investor_flows": data.get("investor_flows"),
+        "push_body": push_body(payload),
+        "sectors": [
+            {
+                "kr_sector": x.get("kr_sector"),
+                "companies": [
+                    {k: c.get(k) for k in ("name", "score", "label", "scores")}
+                    for c in x.get("companies", [])
+                ],
+            }
+            for x in data.get("sectors", [])
+        ],
         "issue_method": data.get("issue_method"),
         "issues": [
             {k: i.get(k) for k in ("title", "summary", "summary_origin", "url")}
             for i in data.get("issues", [])
         ],
+        "calendar_window": (data.get("us_calendar") or {}).get("window_kst"),
         "calendar_rows": [
-            {k: r.get(k) for k in ("event", "kind", "et", "kst", "previous", "provider")}
+            {
+                k: r.get(k)
+                for k in ("event", "kind", "et", "kst", "consensus", "history", "provider")
+            }
             for r in (data.get("us_calendar") or {}).get("rows", [])
         ],
     }
     return json.dumps(out, ensure_ascii=False, indent=1)
+
+
+def _pct(v: object) -> str:
+    return f"{v:+.2f}%" if isinstance(v, (int, float)) else "-"
+
+
+def _eok(v: object) -> str:
+    """억원 → '−2조 9,629억' / '+1,248억'."""
+    if not isinstance(v, (int, float)):
+        return "-"
+    sign = "+" if v > 0 else "−" if v < 0 else ""
+    n = round(abs(v))
+    jo, eok = divmod(n, 10000)
+    return f"{sign}{jo}조 {eok:,}억" if jo else f"{sign}{eok:,}억"
+
+
+def push_body(payload: dict) -> str:
+    """알림 본문: 핵심 수치 한 줄(없으면 발행 시각)."""
+    data = payload.get("data", {})
+    parts: list[str] = []
+    short = {"S&P 500": "S&P", "나스닥 종합": "나스닥", "다우존스": "다우"}
+    for i in data.get("indices", []):
+        if isinstance(i.get("close"), (int, float)):
+            name = short.get(i["name"], i["name"])
+            parts.append(f"{name} {i['close']:,.2f}({_pct(i.get('change_pct'))})")
+    fx = data.get("fx")
+    if fx and isinstance(fx.get("rate"), (int, float)):
+        parts.append(f"원/달러 {fx['rate']:,.2f}")
+    for f in data.get("investor_flows", [])[:1]:  # 코스피 외국인만
+        parts.append(f"외국인 {_eok(f.get('foreign'))}")
+    if payload.get("report_type") == "kr-watchlist":
+        secs = [x.get("kr_sector") for x in data.get("sectors", [])[:3] if x.get("kr_sector")]
+        if secs:
+            parts.append("주목: " + ", ".join(secs))
+    return " · ".join(parts) or f"{payload.get('generated_at_kst')} 발행"
 
 
 async def run_job(
@@ -116,7 +169,7 @@ async def run_job(
             settings,
             sessions,
             payload["title"],
-            f"{payload['generated_at_kst']} 발행",
+            push_body(payload),
             f"/report/{report_type}",
         )
     return result

@@ -62,6 +62,14 @@ def mock_finnhub(ok_news: bool = True):
     respx.get("https://finnhub.io/api/v1/quote").mock(
         return_value=httpx.Response(200, json={"c": 500.0, "d": 5.0, "dp": 1.0, "t": ts})
     )
+    mock_ecb()
+
+
+def mock_ecb():
+    ecb = {"base": "USD", "rates": {"2026-09-25": {"KRW": 1356.0}, "2026-09-28": {"KRW": 1357.93}}}
+    respx.get(re.compile(r"https://api\.frankfurter\.app/.*")).mock(
+        return_value=httpx.Response(200, json=ecb)
+    )
 
 
 @pytest.fixture
@@ -89,6 +97,9 @@ async def test_us_close_falls_back_to_etf_proxy_when_index_plan_denied(sessions,
     assert d["session_date_et"] == "2026-09-28"
     assert d["session_close_kst"] == "2026-09-29 05:00 KST"
     assert all(i["is_proxy"] for i in d["indices"])
+    assert d["fx"]["rate"] == 1357.93 and d["fx"]["change"] == 1.93
+    assert d["fx"]["note"] == "ECB 09/28 고시 · 서울 외환시장 종가 아님"
+    assert d["macro"] == []  # VIX(FMP) 402 · FRED 키 없음 → 가짜 값 없음
     assert len(d["news"]) == 10
     assert payload["status"] == "ok"
     assert any(s["name"] == "Finnhub" for s in payload["sources"])
@@ -122,7 +133,8 @@ async def test_kr_watchlist_builds_us_report_if_missing(sessions, no_sleep):
     p = build_providers(st, sessions)
     payload = await generate(KR_WATCHLIST, st, p, no_llm(), sessions, now=NOW)
     await p.aclose()
-    assert "프리마켓" in payload["data"]["notice"]
+    assert "notice" not in payload["data"]  # 사전 브리핑 안내문 삭제 (2026-09-29 요청)
+    assert payload["title"] == "국장 관전 포인트"
     assert payload["data"]["macro_points"]
     with sessions() as s:
         assert store.get_report(s, US_CLOSE) is not None
@@ -223,6 +235,7 @@ async def test_kr_close_and_calendar(sessions, no_sleep):
     respx.get("https://www.federalreserve.gov/json/calendar.json").mock(
         return_value=httpx.Response(200, json=fed)
     )
+    mock_ecb()
     st = settings(fmp_econ_calendar=True)
     p = build_providers(st, sessions)
     payload = await generate(KR_CLOSE, st, p, no_llm(), sessions, now=now)
@@ -234,14 +247,19 @@ async def test_kr_close_and_calendar(sessions, no_sleep):
     rows = d["us_calendar"]["rows"]
     assert [r["event"] for r in rows] == [
         "JOLTS Job Openings",
-        "GDP 국내총생산 (BEA Gross Domestic Product)",
-        "FOMC 금리 결정·성명 (FOMC Meeting)",
+        "GDP 국내총생산",
+        "FOMC 금리 결정·성명",
         "NVDA 실적 발표",
     ]
-    assert rows[0]["kst"] == "09/29 23:00 KST" and rows[0]["et"] == "09/29 10:00 EDT"
-    assert rows[1]["et"] == "09/30 08:30 EDT" and rows[1]["kind"] == "매크로지표"
-    assert rows[2]["kst"] == "10/01 03:00 KST" and rows[2]["kind"] == "FOMC" and rows[2]["note"]
-    assert rows[3]["kst"] == "확정 시각 없음"
+    assert rows[0]["kst"] == "09/29(화) 23:00 KST" and rows[0]["et"] == "09/29(화) 10:00 EDT"
+    assert rows[1]["et"] == "09/30(수) 08:30 EDT" and rows[1]["kind"] == "매크로지표"
+    assert rows[2]["kst"] == "10/01(목) 03:00 KST" and rows[2]["kind"] == "FOMC"
+    assert rows[2]["note"] is None
+    assert rows[3]["kst"] == "시각 미정"
+    assert payload["title"] == "국장 마감 리포트 + 익일 미국 캘린더"
+    assert d["fx"]["rate"] == 1357.93
+    assert d["investor_flows"] == []  # 키움 미설정
+    assert d["calendar_columns"][-1] == "최근 4회"
     assert payload["status"] == "ok"
     assert d["issues"] == []  # 네이버 키 미설정 → 가짜 이슈 없음
     assert any("국내 뉴스 검색 실패" in w for w in payload["warnings"])
@@ -362,7 +380,7 @@ async def test_close_quote_same_session_has_no_flag(sessions, no_sleep):
 
 
 async def test_kr_issues_topped_up_when_llm_picks_fewer(sessions):
-    """LLM 이 5건보다 적게 고르면 나머지를 최신순(중복 제목 제외)으로 채운다."""
+    """LLM 이 덜 고르면 나머지를 최신순(중복 제목 제외)으로 채운다(후보가 적으면 있는 만큼)."""
     from types import SimpleNamespace
 
     from app.reports.builders import KR_ISSUE_COUNT, Ctx, _kr_issues
@@ -398,7 +416,8 @@ async def test_kr_issues_topped_up_when_llm_picks_fewer(sessions):
     analyst = FakeAnalyst(issues=[{"id": "n6", "summary_ko": "AI 요약"}])
     ctx = Ctx(settings(), providers, analyst, sessions, now=now)
     out, method = await _kr_issues(ctx)
-    assert method == "llm" and len(out) == KR_ISSUE_COUNT
+    assert KR_ISSUE_COUNT == 10
+    assert method == "llm" and len(out) == 6  # 서로 다른 제목 6건뿐
     assert out[0]["title"] == "SK 상장설" and out[0]["summary_origin"] == "llm"
     titles = [o["title"] for o in out]
     assert len(set(titles)) == len(titles)  # 같은 제목은 한 번만
@@ -413,6 +432,7 @@ async def test_us_index_uses_official_eod_close_and_computes_change(sessions, no
         "^GSPC": [("2026-09-28", 7683.69), ("2026-09-25", 7743.41)],
         "^IXIC": [("2026-09-28", 26820.38), ("2026-09-25", 27068.72)],
         "^DJI": [("2026-09-25", 51828.62)],  # 기준 세션(9/28) 종가 아직 없음 → /quote 로 대체
+        "^VIX": [("2026-09-28", 18.5), ("2026-09-25", 17.25)],
     }
 
     def eod(request):
@@ -438,3 +458,10 @@ async def test_us_index_uses_official_eod_close_and_computes_change(sessions, no
     assert spx["provider"] == "FMP (일별 종가)" and not spx.get("is_proxy")
     assert (ndx["change"], ndx["change_pct"]) == (-248.34, -0.92)
     assert dji["close"] == 51481.51 and dji["provider"] == "FMP"
+    vix = payload["data"]["macro"][0]
+    assert (vix["name"], vix["value"], vix["change"], vix["date"]) == (
+        "VIX 변동성지수",
+        18.5,
+        1.25,
+        "2026-09-28",
+    )

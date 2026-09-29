@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.models import JobRun, PushToken, Report
@@ -77,6 +77,10 @@ def add_push_token(s: Session, token: str, at: datetime | None = None) -> None:
     if s.get(PushToken, token) is None:
         s.add(PushToken(token=token, created_at_utc=at or now_utc()))
         s.commit()
+
+
+def count_push_tokens(s: Session) -> int:
+    return int(s.scalar(select(func.count()).select_from(PushToken)) or 0)
 
 
 def list_push_tokens(s: Session) -> list[str]:

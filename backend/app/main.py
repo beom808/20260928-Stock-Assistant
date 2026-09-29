@@ -5,7 +5,9 @@ GET  /report/kr-watchlist             기능 B
 GET  /report/kr-close-and-calendar    기능 C
 GET  /reports                         리포트 이력 목록 (?type=&date_from=&date_to=)
 POST /jobs/{report_type}/run          스케줄러 트리거 (X-Job-Token 헤더 필요)
-POST /push/register                   FCM 웹푸시 토큰 등록
+POST /push/register                   FCM 웹푸시 토큰 등록(구독). replaces 로 이전 토큰 교체
+POST /push/unregister                 구독 취소(토큰 삭제)
+GET  /push/count                      구독자 수(등록된 기기 토큰 수)
 GET  /health
 """
 
@@ -124,11 +126,36 @@ async def trigger(
 
 class PushRegister(BaseModel):
     token: str
+    # 같은 기기에서 토큰이 바뀐 경우 이전 토큰(기기당 1명으로 세기 위해 교체)
+    replaces: str | None = None
+
+
+class PushUnregister(BaseModel):
+    token: str
+
+
+def _valid_token(token: str) -> None:
+    if not (20 <= len(token) <= 512):
+        raise HTTPException(400, "invalid token")
 
 
 @app.post("/push/register")
 def push_register(body: PushRegister, s: SessionDep) -> dict:
-    if not (20 <= len(body.token) <= 512):
-        raise HTTPException(400, "invalid token")
+    _valid_token(body.token)
+    if body.replaces and body.replaces != body.token and 20 <= len(body.replaces) <= 512:
+        store.remove_push_token(s, body.replaces)
     store.add_push_token(s, body.token)
-    return {"ok": True}
+    return {"ok": True, "count": store.count_push_tokens(s)}
+
+
+@app.post("/push/unregister")
+def push_unregister(body: PushUnregister, s: SessionDep) -> dict:
+    _valid_token(body.token)
+    store.remove_push_token(s, body.token)
+    return {"ok": True, "count": store.count_push_tokens(s)}
+
+
+@app.get("/push/count")
+def push_count(s: SessionDep) -> dict:
+    """구독자 수 = 등록된 기기(브라우저) 토큰 수. 같은 기기의 다른 브라우저는 따로 센다."""
+    return {"count": store.count_push_tokens(s)}

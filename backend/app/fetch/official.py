@@ -11,8 +11,8 @@ GitHub Actions 에서 실제 응답을 확인한 형식 (2026-09-29 점검, back
   시각은 연준(워싱턴 D.C.) 기준 미 동부시각으로 해석한다.
 - BLS(CPI·고용·PPI)는 자동 요청을 차단(403 Access Denied, 봇 정책)하므로 직접 수집하지 않는다.
   → FRED API(세인트루이스 연준, 무료 키)의 fred/releases/dates 로 **발표일**만 받는다.
-    FRED 는 시각을 주지 않으므로 BLS 의 관례 발표 시각(08:30 ET 등)을 붙이고
-    '관례 시각·미확정' 으로 표시한다(확정 시각처럼 보이지 않게).
+    FRED 는 시각을 주지 않으므로 BLS 의 관례 발표 시각(08:30 ET 등)을 붙인다.
+    (2026-09-29 요청으로 화면의 '관례 시각·미확정' 표기는 삭제 — time_note 로 데이터에만 남김)
 
 두 출처는 서로 독립적으로 수집하고, 한쪽이 실패해도 다른 쪽 일정은 표시한다.
 """
@@ -36,33 +36,27 @@ HEADERS = {
 
 # 시장에 영향이 큰 BEA 발표만 (이름은 classify_event 키워드 gdp/pce 에 걸리도록 구성)
 BEA_RELEASES = {
-    "Gross Domestic Product": "GDP 국내총생산 (BEA Gross Domestic Product)",
-    "Personal Income and Outlays": "PCE 물가·개인소득/지출 (BEA Personal Income and Outlays)",
-    "U.S. International Trade in Goods and Services": "무역수지 (BEA International Trade)",
+    "Gross Domestic Product": "GDP 국내총생산",
+    "Personal Income and Outlays": "PCE 물가·개인소득/지출",
+    "U.S. International Trade in Goods and Services": "무역수지",
 }
 # 연준 일정 중 표에 넣을 것: 제목 → 표시 이름
 FED_TITLES = {
-    "FOMC Meeting": "FOMC 금리 결정·성명 (FOMC Meeting)",
-    "FOMC Press Conference": "FOMC 기자회견 (FOMC Press Conference)",
-    "FOMC Minutes": "FOMC 의사록 (FOMC Minutes)",
-    "Beige Book": "베이지북 (Beige Book)",
-    "G.17 - Industrial Production and Capacity Utilization": "산업생산 (Fed G.17)",
+    "FOMC Meeting": "FOMC 금리 결정·성명",
+    "FOMC Press Conference": "FOMC 기자회견",
+    "FOMC Minutes": "FOMC 의사록",
+    "Beige Book": "베이지북",
+    "G.17 - Industrial Production and Capacity Utilization": "산업생산",
 }
 FRED_URL = "https://api.stlouisfed.org/fred/releases/dates"
 # FRED 발표명 → (표시 이름, 관례 발표 시각 ET). 발표명은 FRED release_name 과 정확히 일치해야 함
 FRED_RELEASES: dict[str, tuple[str, time]] = {
-    "Consumer Price Index": ("CPI 소비자물가 (BLS Consumer Price Index)", time(8, 30)),
-    "Employment Situation": ("고용보고서·비농업고용 (BLS Employment Situation)", time(8, 30)),
-    "Producer Price Index": ("PPI 생산자물가 (BLS Producer Price Index)", time(8, 30)),
-    "Advance Monthly Sales for Retail and Food Services": (
-        "소매판매 retail sales (Census)",
-        time(8, 30),
-    ),
-    "Unemployment Insurance Weekly Claims Report": (
-        "신규 실업수당 청구 initial jobless claims (DOL)",
-        time(8, 30),
-    ),
-    "Job Openings and Labor Turnover Survey": ("JOLTS 구인·이직 (BLS)", time(10, 0)),
+    "Consumer Price Index": ("CPI 소비자물가", time(8, 30)),
+    "Employment Situation": ("고용보고서(비농업고용·실업률)", time(8, 30)),
+    "Producer Price Index": ("PPI 생산자물가", time(8, 30)),
+    "Advance Monthly Sales for Retail and Food Services": ("소매판매", time(8, 30)),
+    "Unemployment Insurance Weekly Claims Report": ("신규 실업수당 청구", time(8, 30)),
+    "Job Openings and Labor Turnover Survey": ("JOLTS 구인·이직", time(10, 0)),
 }
 CONVENTION_NOTE = "관례 시각·미확정"
 
@@ -81,6 +75,8 @@ HISTORY_SERIES: dict[str, tuple[str, str, str, str, str]] = {
     "무역수지": ("BOPGSTB", "lin", "M", "usd_mn", "무역수지"),
 }
 HISTORY_N = 4  # 최근 발표 4회(당월 직전 발표 + 그 이전 3회)
+# 신규 실업수당 청구: 주간 값의 잡음이 커서 4주 이동평균을 함께 보여준다
+CLAIMS_4WK_SERIES = "IC4WSA"
 
 
 def history_spec(event_name: str) -> tuple[str, str, str, str, str] | None:
@@ -112,22 +108,41 @@ def _value(v: float, fmt: str) -> str:
     return f"{v:g}"
 
 
-def format_history(body: object, freq: str, fmt: str, label: str) -> str | None:
-    """FRED observations(최신순) → '8월 2.9% · 7월 2.7% · … (CPI 전년비, FRED)'. 없으면 None."""
+def history_points(body: object, freq: str, fmt: str) -> list[dict]:
+    """FRED observations(최신순) → 최신순 [{period, text, dir}].
+
+    dir: 직전 발표 대비 up/down/flat (가장 오래된 값은 비교 대상이 있을 때만)."""
     obs = body.get("observations") if isinstance(body, dict) else None
-    parts: list[str] = []
+    vals: list[tuple[date, float]] = []
     for o in obs or []:
         try:
             d = date.fromisoformat(str(o.get("date")))
             v = float(o.get("value"))
         except (TypeError, ValueError):  # FRED 는 결측을 "." 로 준다
             continue
-        parts.append(f"{_period(d, freq)} {_value(v, fmt)}")
-        if len(parts) >= HISTORY_N:
+        vals.append((d, v))
+        if len(vals) > HISTORY_N:  # 가장 오래된 값의 방향 계산용으로 1개 더
             break
-    if not parts:
+    out = []
+    for i, (d, v) in enumerate(vals[:HISTORY_N]):
+        prev = vals[i + 1][1] if i + 1 < len(vals) else None
+        # 표시 자릿수 기준으로 같으면 보합
+        if prev is None:
+            direction = None
+        elif _value(v, fmt) == _value(prev, fmt):
+            direction = "flat"
+        else:
+            direction = "up" if v > prev else "down"
+        out.append({"period": _period(d, freq), "text": _value(v, fmt), "dir": direction})
+    return out
+
+
+def format_history(body: object, freq: str, fmt: str, label: str) -> str | None:
+    """FRED observations(최신순) → '8월 2.9% · 7월 2.7% · … (CPI 전년비, FRED)'. 없으면 None."""
+    pts = history_points(body, freq, fmt)
+    if not pts:
         return None
-    return " · ".join(parts) + f" ({label}, FRED)"
+    return " · ".join(f"{p['period']} {p['text']}" for p in pts) + f" ({label}, FRED)"
 
 
 _TIME = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*([ap])\.?\s*m\.?\s*$", re.I)
@@ -272,12 +287,7 @@ class OfficialCalendarFetcher:
         )
         return res.data
 
-    async def history(self, event_name: str) -> str | None:
-        """이벤트의 최근 발표 수치(최신 4회). FRED 키가 없거나 대상이 아니면 None."""
-        spec = history_spec(event_name)
-        if spec is None or not self.fred_api_key:
-            return None
-        series, units, freq, fmt, label = spec
+    async def _observations(self, series: str, units: str, limit: int) -> object:
         res = await self.client.get_json(
             FRED_OBS_URL,
             params={
@@ -286,12 +296,42 @@ class OfficialCalendarFetcher:
                 "series_id": series,
                 "units": units,
                 "sort_order": "desc",
-                "limit": HISTORY_N + 2,  # 결측(".") 대비 여유
+                "limit": limit,
             },
             ttl=timedelta(hours=6),
             cache_if=_is_dict,
         )
-        return format_history(res.data, freq, fmt, label)
+        return res.data
+
+    async def history(self, event_name: str) -> dict | None:
+        """이벤트의 최근 발표 수치(최신 4회). FRED 키가 없거나 대상이 아니면 None.
+
+        {"text": "8월 2.9% · …", "label": "CPI 전년비", "points": [{period, text, dir}], "extra"}
+        """
+        spec = history_spec(event_name)
+        if spec is None or not self.fred_api_key:
+            return None
+        series, units, freq, fmt, label = spec
+        body = await self._observations(series, units, HISTORY_N + 3)  # 결측(".") 대비 여유
+        points = history_points(body, freq, fmt)
+        if not points:
+            return None
+        extra = None
+        if series == "ICSA":
+            try:
+                pts4 = history_points(
+                    await self._observations(CLAIMS_4WK_SERIES, "lin", 4), freq, fmt
+                )
+                if pts4:
+                    extra = f"4주 평균 {pts4[0]['text']} ({pts4[0]['period']})"
+            except ApiError:
+                extra = None
+        return {
+            "text": format_history(body, freq, fmt, label),
+            "label": f"{label}, FRED",
+            "points": points,
+            "extra": extra,
+        }
 
     async def economic_calendar(
         self, d_from: date, d_to: date

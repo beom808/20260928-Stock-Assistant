@@ -13,6 +13,7 @@ from app.fetch.fmp import FmpFetcher
 from app.fetch.http import ApiClient
 from app.fetch.kis import KisFetcher
 from app.fetch.kiwoom import KiwoomFetcher
+from app.fetch.macro import MacroFetcher
 from app.fetch.naver import NaverNewsFetcher
 from app.fetch.official import OfficialCalendarFetcher
 
@@ -25,6 +26,7 @@ class Providers:
     kiwoom: KiwoomFetcher
     naver: NaverNewsFetcher
     official: OfficialCalendarFetcher
+    macro: MacroFetcher
     http: httpx.AsyncClient
     kiwoom_http: httpx.AsyncClient | None = None  # 고정 IP 프록시 전용 클라이언트(설정 시)
 
@@ -67,6 +69,9 @@ def build_providers(
             nv, settings.naver_client_id, settings.naver_client_secret, settings.naver_api
         ),
         official=OfficialCalendarFetcher(off, settings.fred_api_key),
+        macro=MacroFetcher(
+            ApiClient("macro", sessions, http, per_minute=30), settings.fred_api_key
+        ),
         http=http,
         kiwoom_http=kiwoom_http,
     )

@@ -31,7 +31,7 @@ from app.timeutil import (
     to_kst,
     us_close_kst,
 )
-from app.transform.calendar import build_calendar
+from app.transform.calendar import build_calendar, calendar_end
 from app.transform.kr_mapping import map_to_korea
 from app.transform.text import first_sentence, norm_headline
 from app.transform.us_close import TARGET_COUNT, dedupe, in_window, rank_news
@@ -140,6 +140,50 @@ async def _us_indices(ctx: Ctx, session: date) -> list[dict]:
     return out
 
 
+async def _fx(ctx: Ctx) -> dict | None:
+    """USD/KRW — ECB 기준환율(무료). 서울 외환시장 종가가 아니므로 고시일과 함께 표시."""
+    try:
+        fx = await ctx.providers.macro.usdkrw_ecb(kst_today(ctx.now))
+    except ApiError as e:
+        ctx.warnings.append(f"USD/KRW 환율 수집 실패({e.kind})")
+        return None
+    ctx.src("ECB 기준환율 (Frankfurter)", "USD/KRW 환율")
+    return fx
+
+
+async def _macro(ctx: Ctx, session: date) -> list[dict]:
+    """매크로 카드: VIX(FMP 일별 종가) + 미 10년물·달러지수(FRED, 1영업일 이상 지연)."""
+    out: list[dict] = []
+    try:
+        try:
+            q = await ctx.providers.fmp.index_eod("VIX", "^VIX", session)
+        except ApiError as e0:
+            if e0.kind in ("config", "quota"):
+                raise
+            q = await ctx.providers.fmp.index_quote("VIX", "^VIX")
+        out.append(
+            {
+                "name": "VIX 변동성지수",
+                "value": q.close,
+                "unit": "",
+                "change": q.change,
+                "date": to_et(q.as_of).date().isoformat() if q.as_of else None,
+                "provider": q.provider,
+                "note": None,
+            }
+        )
+        ctx.src(q.provider, "VIX", q.as_of)
+    except ApiError as e:
+        ctx.warnings.append(f"VIX 수집 실패({e.kind})")
+    try:
+        out += await ctx.providers.macro.fred_macro()
+        ctx.src("FRED (DGS10·DTWEXBGS)", "미국 10년물 금리·달러지수")
+    except ApiError as e:
+        if e.kind != "config":
+            ctx.warnings.append(f"FRED 매크로 지표 수집 실패({e.kind})")
+    return out
+
+
 async def _us_news(ctx: Ctx, session: date) -> list[NewsItem]:
     items: list[NewsItem] = []
     try:
@@ -172,6 +216,8 @@ def _prev_us_session(d: date) -> date:
 async def build_us_close(ctx: Ctx) -> dict:
     session = last_completed_us_session(ctx.now)
     indices = await _us_indices(ctx, session)
+    fx = await _fx(ctx)
+    macro = await _macro(ctx, session)
     all_news = await _us_news(ctx, session)
 
     # 조회 구간: 직전 세션 전일 마감(16:00 ET) ~ 리포트 생성 시각.
@@ -196,6 +242,8 @@ async def build_us_close(ctx: Ctx) -> dict:
         "session_close_kst": fmt_kst(us_close_kst(session)),
         "session_close_tz": to_et(et_wall_to_utc(session, US_CLOSE_ET)).tzname(),
         "indices": indices,
+        "fx": fx,
+        "macro": macro,
         "news": ranked,
         "news_window_kst": f"{fmt_kst(start)} ~ {fmt_kst(ctx.now)}",
         "ranking_method": method,
@@ -221,21 +269,17 @@ async def build_kr_watchlist(ctx: Ctx, us_report: dict) -> dict:
         ctx.src(f"Anthropic Claude ({ctx.analyst.model})", "관련도 추론(후보 종목 내에서만)")
     ctx.src(f"전일 미국 마감 리포트({us_report.get('generated_at_kst')})", "입력 이슈(기능 A 결과)")
     data = {
-        "notice": (
-            "정규장(09:00) 개장 전 사전 브리핑입니다. KRX 프리마켓은 미시행이므로 이 시각의 "
-            "국내 실거래 데이터는 포함되지 않습니다."
-        ),
         "us_session_date_et": us_report.get("data", {}).get("session_date_et"),
         **mapping,
     }
     if not us_items:
         ctx.errors.append("입력으로 쓸 미국 뉴스가 없어 관전 포인트를 만들 수 없습니다.")
-    return envelope(ctx, KR_WATCHLIST, "한국장 관전 포인트", kst_today(ctx.now), data)
+    return envelope(ctx, KR_WATCHLIST, "국장 관전 포인트", kst_today(ctx.now), data)
 
 
 # ── 기능 C ────────────────────────────────────────────────────────────────
-KR_NEWS_QUERIES = ("코스피 마감", "코스닥 마감", "증시 특징주")
-KR_ISSUE_COUNT = 5
+KR_NEWS_QUERIES = ("코스피 마감", "코스닥 마감", "증시 특징주", "코스피 외국인 기관")
+KR_ISSUE_COUNT = 10  # 화면: 홈 5건, 전체 보기 10건
 
 
 async def _kr_issues(ctx: Ctx) -> tuple[list[dict], str]:
@@ -256,12 +300,12 @@ async def _kr_issues(ctx: Ctx) -> tuple[list[dict], str]:
     picked: list[tuple[NewsItem, str, str]] = []
     method = "rules"
     try:
-        cands = [{"id": n.id, "title": n.headline, "desc": n.summary[:300]} for n in items[:40]]
+        cands = [{"id": n.id, "title": n.headline, "desc": n.summary[:300]} for n in items[:60]]
         for r in await ctx.analyst.pick_kr_issues(cands, KR_ISSUE_COUNT):
             n = by_id.get(r.get("id", ""))
             if n and all(n.id != p[0].id for p in picked):
                 picked.append((n, (r.get("summary_ko") or "").strip(), "llm"))
-            if len(picked) >= KR_ISSUE_COUNT:  # 여유 있게 받은 뒤 상위 5건만
+            if len(picked) >= KR_ISSUE_COUNT:  # 여유 있게 받은 뒤 상위 KR_ISSUE_COUNT 건만
                 break
         method = "llm"
     except LLMUnavailable as e:
@@ -331,9 +375,28 @@ async def _kr_indices(ctx: Ctx) -> list[dict]:
     return out
 
 
+async def _kr_flows(ctx: Ctx) -> list[dict]:
+    """코스피·코스닥 투자자별 순매수(키움 ka10051, KRX, 억원). 장 마감 직후 값은 잠정치."""
+    kiwoom = ctx.providers.kiwoom
+    if not kiwoom.configured:
+        return []
+    out = []
+    for name in ("KOSPI", "KOSDAQ"):
+        try:
+            flows = await kiwoom.investor_flows(name, kst_today(ctx.now))
+        except ApiError as e:
+            ctx.warnings.append(f"{name} 투자자별 순매수 수집 실패: {e}")
+            continue
+        out.append({"market": name, "unit": "억원", **flows})
+    if out:
+        ctx.src("키움증권 REST API (ka10051)", "투자자별 순매수(KRX, 잠정)", ctx.now)
+    return out
+
+
 async def _us_calendar(ctx: Ctx) -> dict:
     et_today = to_et(ctx.now).date()
-    d_to = et_today + timedelta(days=3)
+    # 금요일(또는 연휴 전) 오후 리포트는 다음 미국 거래일 일정까지 포함
+    d_to = to_et(calendar_end(ctx.now)).date()
     # 경제지표·FOMC: BEA·연준 공식 일정(무료) + FRED(키 설정 시, BLS 지표 발표일·관례 시각)
     official = ctx.providers.official
     econ, failed = await official.economic_calendar(et_today, d_to)
@@ -353,7 +416,7 @@ async def _us_calendar(ctx: Ctx) -> dict:
         except ApiError as e:
             failed.append(f"FMP 경제캘린더 수집 실패: {e}")
     # 추세 판단용: 지표마다 최근 4회 발표 수치(FRED)를 '이전' 칸에 붙인다
-    hist_cache: dict[str, str | None] = {}
+    hist_cache: dict[str, dict | None] = {}
     for ev in econ:
         if ev.previous:
             continue
@@ -363,7 +426,9 @@ async def _us_calendar(ctx: Ctx) -> dict:
             except ApiError as e:
                 hist_cache[ev.name] = None
                 ctx.warnings.append(f"{ev.name} 과거 수치 조회 실패({e.kind})")
-        ev.previous = hist_cache[ev.name]
+        h = hist_cache[ev.name]
+        if h:
+            ev.previous, ev.history = h["text"], h
     attempted = 2 + bool(official.fred_api_key) + bool(ctx.settings.fmp_econ_calendar)
     if len(failed) >= attempted:  # 모든 출처가 실패했을 때만 오류(일정이 없는 날은 정상)
         ctx.errors.append("경제캘린더 수집 실패: " + " / ".join(failed))
@@ -396,20 +461,22 @@ async def _us_calendar(ctx: Ctx) -> dict:
 
 async def build_kr_close(ctx: Ctx) -> dict:
     indices = await _kr_indices(ctx)
+    fx = await _fx(ctx)
+    flows = await _kr_flows(ctx)
     issues, issue_method = await _kr_issues(ctx)
     if issue_method == "llm":
         ctx.src(f"Anthropic Claude ({ctx.analyst.model})", "국내 이슈 선정·요약(원문 기반)")
     calendar = await _us_calendar(ctx)
     data = {
         "indices": indices,
+        "fx": fx,
+        "investor_flows": flows,
         "issues": issues,
         "issue_method": issue_method,
         "us_calendar": calendar,
-        "calendar_columns": ["이벤트명", "종류", "미국시각(ET)", "한국시각(KST)", "컨센서스"],
+        "calendar_columns": ["이벤트명", "종류", "미국시각(ET)", "한국시각(KST)", "최근 4회"],
     }
-    return envelope(
-        ctx, KR_CLOSE, "국내 장 마감 리포트 + 익일 미국 캘린더", kst_today(ctx.now), data
-    )
+    return envelope(ctx, KR_CLOSE, "국장 마감 리포트 + 익일 미국 캘린더", kst_today(ctx.now), data)
 
 
 # ── 실행 진입점 ───────────────────────────────────────────────────────────

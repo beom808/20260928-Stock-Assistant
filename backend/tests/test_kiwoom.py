@@ -192,3 +192,55 @@ async def test_proxy_used_only_for_kiwoom(sessions):
         assert p2.kiwoom_http is None and p2.kiwoom.client.http is p2.http
     finally:
         await p2.aclose()
+
+
+@respx.mock
+async def test_investor_flows_reads_market_total_row_in_eok(sessions, no_sleep):
+    """ka10051: 2026-09-29 실서버 응답 형식(종합 행 inds_cd 001/101, 억원, 부호 문자열)."""
+    from app.reports.builders import _kr_flows
+
+    token_ok()
+    rows = {
+        "0": [{"inds_cd": "001", "inds_nm": "종합(KOSPI)", "frgnr_netprps": "-29629",
+               "orgn_netprps": "+1248", "ind_netprps": "+11942"},
+              {"inds_cd": "002", "inds_nm": "대형주", "frgnr_netprps": "-27938"}],
+        "1": [{"inds_cd": "101", "inds_nm": "종합(KOSDAQ)", "frgnr_netprps": "-1452",
+               "orgn_netprps": "-18", "ind_netprps": "+1712"}],
+    }  # fmt: skip
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["api-id"] == "ka10051"
+        body = json.loads(request.content)
+        seen.append(body)
+        return httpx.Response(200, json={"return_code": 0, "inds_netprps": rows[body["mrkt_tp"]]})
+
+    respx.post(f"{BASE}/api/dostk/sect").mock(side_effect=handler)
+    st = settings()
+    p = build_providers(st, sessions)
+    ctx = Ctx(st, p, no_llm(), sessions, now=NOW)
+    flows = await _kr_flows(ctx)
+    await p.aclose()
+    assert flows == [
+        {"market": "KOSPI", "unit": "억원", "foreign": -29629.0, "institution": 1248.0,
+         "retail": 11942.0},
+        {"market": "KOSDAQ", "unit": "억원", "foreign": -1452.0, "institution": -18.0,
+         "retail": 1712.0},
+    ]  # fmt: skip
+    assert seen[0] == {"mrkt_tp": "0", "amt_qty_tp": "0", "base_dt": "20260929", "stex_tp": "1"}
+
+
+@respx.mock
+async def test_investor_flows_error_is_warning_not_fake_value(sessions, no_sleep):
+    from app.reports.builders import _kr_flows
+
+    token_ok()
+    respx.post(f"{BASE}/api/dostk/sect").mock(
+        return_value=httpx.Response(200, json={"return_code": 2, "return_msg": "입력 값 오류"})
+    )
+    st = settings()
+    p = build_providers(st, sessions)
+    ctx = Ctx(st, p, no_llm(), sessions, now=NOW)
+    assert await _kr_flows(ctx) == []
+    await p.aclose()
+    assert any("투자자별 순매수 수집 실패" in w for w in ctx.warnings)

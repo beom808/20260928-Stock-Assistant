@@ -4,13 +4,13 @@
   "news_tiers": {"s1": "a", "s2": "b", "s3": "c", "s4": "c", "s5": "c", "s6": "c", "s7": "c", "s8": "c", "s9": "c", "s10": "c"},
   "no_link_ids": ["s4", "s9"],
   "sectors": {
-    "semiconductors": ["000660", "005930", "042700", "009150"],
+    "semiconductors": ["000660", "042700", "005930", "009150"],
     "ai_infra_power": ["267260", "010120", "000660"],
     "financials_rates": ["055550", "105560"],
     "defense_aerospace": ["012450", "079550"],
     "biotech_pharma": ["207940", "068270"],
     "energy_oil": ["010950", "096770"],
-    "consumer_electronics": ["011070", "034220", "005930", "009150"],
+    "consumer_electronics": ["011070", "034220", "009150", "005930"],
     "ev_battery": ["373220", "006400", "003670", "247540"]
   },
   "first_sectors": ["semiconductors", "ai_infra_power"]

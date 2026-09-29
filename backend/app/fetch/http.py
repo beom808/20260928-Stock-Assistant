@@ -163,6 +163,7 @@ class ApiClient:
         use_cache: bool = True,
         cache_extra: dict[str, Any] | None = None,
         cache_if: Callable[[Any], bool] | None = None,
+        follow_redirects: bool = False,
     ) -> FetchResult:
         # json_body 는 시크릿이 섞일 수 있어 캐시 키에서 제외한다.
         # 같은 URL 에 본문만 다른 요청(예: 지수 코드)은 cache_extra 로 비밀이 아닌 구분값을 넘긴다.
@@ -188,7 +189,12 @@ class ApiClient:
             self._bump_usage()
             try:
                 resp = await self.http.request(
-                    method, url, params=params, headers=headers, json=json_body
+                    method,
+                    url,
+                    params=params,
+                    headers=headers,
+                    json=json_body,
+                    follow_redirects=follow_redirects,
                 )
             except httpx.HTTPError as e:
                 last_err = ApiError(self.provider, "network", repr(e))

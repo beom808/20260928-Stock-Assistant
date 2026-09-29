@@ -58,7 +58,7 @@ def test_parse_bea_filters_range_duplicates_and_unknown_releases():
 def test_parse_fed_titles_days_and_missing_time():
     ev = parse_fed(FED, D0, D1)
     names = sorted((e.name, e.date_et) for e in ev)
-    assert [n for n, _ in names].count("산업생산 (Fed G.17)") == 2  # "29, 30" → 2건
+    assert [n for n, _ in names].count("산업생산") == 2  # "29, 30" → 2건
     assert not any("Speech" in n or "의사록" in n for n, _ in names)  # 범위 밖 · 대상 아님
     fomc = next(e for e in ev if e.name.startswith("FOMC"))
     assert fomc.at_utc == datetime(2026, 9, 30, 18, 0, tzinfo=UTC)  # 14:00 EDT
@@ -117,7 +117,7 @@ def test_parse_fred_uses_convention_times_and_marks_them():
     assert jolts.at_utc == datetime(2026, 9, 30, 14, 0, tzinfo=UTC)  # 10:00 EDT
 
 
-def test_convention_time_is_labelled_not_confirmed():
+def test_convention_time_kept_in_data_but_not_shown():
     from app.fetch.official import parse_fred
     from app.transform.calendar import econ_rows
 
@@ -125,8 +125,8 @@ def test_convention_time_is_labelled_not_confirmed():
     start = datetime(2026, 9, 29, 6, 40, tzinfo=UTC)
     rows = econ_rows(ev, start, datetime(2026, 10, 2, tzinfo=UTC))
     cpi = next(r for r in rows if r["event"].startswith("CPI"))
-    assert cpi["et"] == "10/01 08:30 EDT (관례 시각·미확정)"
-    assert cpi["kst"] == "10/01 21:30 KST (관례 시각·미확정)"
+    assert cpi["et"] == "10/01(목) 08:30 EDT"  # '관례 시각·미확정' 표기 삭제 (2026-09-29 요청)
+    assert cpi["kst"] == "10/01(목) 21:30 KST"
     assert cpi["time_confirmed"] is False
 
 
@@ -159,13 +159,13 @@ def test_format_history_monthly_weekly_quarterly_and_missing():
         {"date": "2026-06-01", "value": "2.7"}, {"date": "2026-05-01", "value": "2.44"},
         {"date": "2026-04-01", "value": "2.3"}, {"date": "2026-03-01", "value": "2.1"},
     ]}  # fmt: skip
-    assert history_spec("CPI 소비자물가 (BLS Consumer Price Index)")[0] == "CPIAUCSL"
+    assert history_spec("CPI 소비자물가")[0] == "CPIAUCSL"
     assert format_history(cpi, "M", "pct", "CPI 전년비") == (
         "8월 2.9% · 6월 2.7% · 5월 2.4% · 4월 2.3% (CPI 전년비, FRED)"
     )
     claims = {"observations": [{"date": "2026-09-19", "value": "231000"},
                                {"date": "2026-09-12", "value": "218000"}]}  # fmt: skip
-    assert history_spec("신규 실업수당 청구 initial jobless claims (DOL)")[0] == "ICSA"
+    assert history_spec("신규 실업수당 청구")[0] == "ICSA"
     assert format_history(claims, "W", "count", "주간 신규 청구") == (
         "09/19주 23.1만 건 · 09/12주 21.8만 건 (주간 신규 청구, FRED)"
     )
@@ -176,7 +176,26 @@ def test_format_history_monthly_weekly_quarterly_and_missing():
     assert format_history(jolts, "M", "thous", "구인 건수").startswith("7월 727.1만 건")
     nfp = {"observations": [{"date": "2026-08-01", "value": "-12"}]}
     assert format_history(nfp, "M", "thous_signed", "비농업").startswith("8월 -1.2만 명")
-    assert history_spec("FOMC 금리 결정·성명 (FOMC Meeting)") is None
+    assert history_spec("FOMC 금리 결정·성명") is None
+
+
+def test_history_points_direction_arrows():
+    from app.fetch.official import history_points
+
+    body = {"observations": [
+        {"date": "2026-08-01", "value": "2.94"}, {"date": "2026-07-01", "value": "2.7"},
+        {"date": "2026-06-01", "value": "2.71"}, {"date": "2026-05-01", "value": "2.8"},
+        {"date": "2026-04-01", "value": "2.9"},
+    ]}  # fmt: skip
+    pts = history_points(body, "M", "pct")
+    assert [(p["period"], p["text"], p["dir"]) for p in pts] == [
+        ("8월", "2.9%", "up"),
+        ("7월", "2.7%", "flat"),  # 표시 자릿수 기준 같으면 보합
+        ("6월", "2.7%", "down"),
+        ("5월", "2.8%", "down"),  # 4월 값과 비교
+    ]
+    one = history_points({"observations": [{"date": "2026-04-01", "value": "3.1"}]}, "Q", "pct")
+    assert one == [{"period": "26년 2Q", "text": "3.1%", "dir": None}]
 
 
 @respx.mock
@@ -204,6 +223,7 @@ async def test_calendar_rows_carry_recent_history(sessions, no_sleep):
     await p.aclose()
     by = {r["event"][:4]: r for r in cal["rows"]}
     assert by["CPI "]["previous"].startswith("8월 2.5%")
+    assert by["CPI "]["history"]["points"][0] == {"period": "8월", "text": "2.5%", "dir": None}
     assert by["GDP "]["previous"].startswith("26년 3Q")  # 2026-08-01 → 3분기
     series = {c.request.url.params["series_id"] for c in obs.calls}
     assert {"CPIAUCSL", "JTSJOL", "A191RL1Q225SBEA"} <= series

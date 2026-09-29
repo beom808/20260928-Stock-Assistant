@@ -1,4 +1,4 @@
-"""키움증권 REST API — 국내 지수(코스피·코스닥) 시세.
+"""키움증권 REST API — 국내 지수(코스피·코스닥) 시세 · 투자자별 순매수.
 
 규격 근거 (공식 포털 openapi.kiwoom.com 원문은 개발 환경에서 접근 불가 → 공개 예제로 대조):
 - 서버: https://api.kiwoom.com (모의: https://mockapi.kiwoom.com)
@@ -9,12 +9,19 @@
 - 업종코드: 001 = 종합(KOSPI), 101 = 종합(KOSDAQ)
 - ⚠️ 시장구분(mrkt_tp) 값은 자료마다 달라(코스피 "0"/"000", 코스닥 "1"/"10") 확정하지 못했다.
   → 후보를 순서대로 시도하고 정상 응답(return_code 0, 지수값 숫자)만 채택. 추측값은 만들지 않는다.
+- 업종별투자자순매수요청: 같은 경로, api-id=ka10051 (2026-09-29 실서버 점검, probe_kiwoom_flows.py)
+  body {mrkt_tp: 0 코스피 | 1 코스닥, amt_qty_tp: 0 금액, base_dt: YYYYMMDD, stex_tp: 1 KRX}
+  (stex_tp 는 필수. 3 을 주면 KRX+NXT 통합, inds_cd 에 "_AL" 이 붙는다)
+  → {"inds_netprps": [{inds_cd: "001"(코스피 종합)|"101"(코스닥 종합), frgnr_netprps, orgn_netprps,
+     ind_netprps, etc_corp_netprps, ...}]}  금액 단위는 억원(부호 포함 문자열, 예 "-29629").
+  같은 날 보도(KRX 기준 외국인 −2조9,046억)와 대조해 억원 단위임을 확인했다. 장 마감 직후 값은
+  잠정치라 이후 확정치와 조금 다를 수 있다.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from app.fetch.http import ApiClient, ApiError
@@ -29,6 +36,8 @@ KIWOOM_INDEX_CANDIDATES: dict[str, list[tuple[str, str]]] = {
 }
 SECT_PATH = "/api/dostk/sect"
 JSON_CT = "application/json;charset=UTF-8"
+FLOW_MARKETS = {"KOSPI": ("0", "001"), "KOSDAQ": ("1", "101")}
+FLOW_FIELDS = {"foreign": "frgnr_netprps", "institution": "orgn_netprps", "retail": "ind_netprps"}
 # 지수값 타당성 범위(단위 오해·잘못된 코드 응답을 걸러내기 위한 느슨한 범위)
 PLAUSIBLE_INDEX_RANGE = (50.0, 100_000.0)
 
@@ -159,3 +168,46 @@ class KiwoomFetcher:
             log.info("키움 %s 채택: mrkt_tp=%s inds_cd=%s", name, mrkt_tp, inds_cd)
             return q
         raise ApiError(self.provider, "parse", f"{name} 지수 조회 실패: {last_msg}")
+
+    async def investor_flows(self, name: str, day: date) -> dict:
+        """코스피/코스닥 투자자별 순매수(억원, KRX). {'foreign','institution','retail'}"""
+        mrkt_tp, inds_cd = FLOW_MARKETS[name]
+        token = await self._token()
+        res = await self.client.request_json(
+            "POST",
+            f"{self.base}{SECT_PATH}",
+            json_body={
+                "mrkt_tp": mrkt_tp,
+                "amt_qty_tp": "0",
+                "base_dt": f"{day:%Y%m%d}",
+                "stex_tp": "1",
+            },
+            headers={
+                "Content-Type": JSON_CT,
+                "authorization": f"Bearer {token}",
+                "api-id": "ka10051",
+                "cont-yn": "N",
+                "next-key": "",
+            },
+            ttl=timedelta(minutes=10),
+            cache_extra={"api_id": "ka10051", "mrkt_tp": mrkt_tp, "base_dt": f"{day:%Y%m%d}"},
+            cache_if=_ok_code,
+        )
+        body = res.data or {}
+        if str(body.get("return_code", 0)) != "0":
+            msg = f"{name} 투자자별 순매수: {body.get('return_msg')}"
+            raise ApiError(self.provider, "http", msg)
+        row = next(
+            (
+                r
+                for r in body.get("inds_netprps") or []
+                if isinstance(r, dict) and str(r.get("inds_cd", "")).strip() == inds_cd
+            ),
+            None,
+        )
+        if row is None:
+            raise ApiError(self.provider, "parse", f"{name} 투자자별 순매수: 종합 행 없음")
+        out = {k: _num(row.get(f)) for k, f in FLOW_FIELDS.items()}
+        if all(v is None for v in out.values()):
+            raise ApiError(self.provider, "parse", f"{name} 투자자별 순매수: 값 없음")
+        return out

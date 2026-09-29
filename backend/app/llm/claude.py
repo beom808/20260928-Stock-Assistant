@@ -141,7 +141,6 @@ class ClaudeAnalyst:
                         "properties": {
                             "sector_key": {"type": "string", "enum": keys},
                             "code": {"type": "string", "enum": codes},
-                            "same_industry": score,
                             "supply_chain": score,
                             "sensitivity": score,
                             "theme": score,
@@ -150,7 +149,6 @@ class ClaudeAnalyst:
                         "required": [
                             "sector_key",
                             "code",
-                            "same_industry",
                             "supply_chain",
                             "sensitivity",
                             "theme",
@@ -164,12 +162,16 @@ class ClaudeAnalyst:
             "additionalProperties": False,
         }
         prompt = (
-            "미국 섹터별 이슈 요약과 한국 상장기업 후보 목록이 주어집니다. 각 섹터 이슈와 관련도가 "
-            "있는 한국 기업만 골라 네 가지 기준을 0~1로 따로 평가하세요.\n"
-            "① same_industry: 동일 산업/직접 경쟁 ② supply_chain: 고객사·공급사 관계 "
-            "③ sensitivity: 수출 비중·환율 등 실적 민감도 ④ theme: 테마성 연관(단순 키워드 일치는 "
-            "0.3 이하).\n확실히 알려진 관계가 아니면 supply_chain 을 높게 주지 마세요. "
-            "rationale 은 왜 관련 있다고 봤는지 한국어 1줄(60자 이내).\n\n"
+            "미국 섹터별 이슈 요약과 한국 상장기업 후보 목록이 주어집니다. "
+            "각 섹터 이슈와 관련 있는 한국 기업만 골라, "
+            "이번 이슈가 그 기업에 수혜인지 악재인지를 세 가지 경로별로 "
+            "-1~+1 로 평가하세요(+ 수혜, - 악재, 0 영향 없음·판단 불가, 절댓값은 영향의 크기).\n"
+            "① supply_chain: 고객사·공급사 관계를 통한 영향 "
+            "② sensitivity: 수출 비중·환율·업황 등 실적 민감도를 통한 영향 "
+            "③ theme: 테마성 연관(단순 키워드 일치는 절댓값 0.3 이하).\n"
+            "확실히 알려진 관계가 아니면 supply_chain 절댓값을 크게 주지 마세요. 뉴스 내용만으로 "
+            "방향을 판단할 수 없으면 0 에 가깝게 주세요. rationale 은 왜 수혜/악재로 봤는지 "
+            "한국어 1줄(60자 이내).\n\n"
             f"섹터 이슈: {json.dumps(sector_briefs, ensure_ascii=False)}\n"
             f"한국 기업 후보: {json.dumps(universe, ensure_ascii=False)}"
         )
@@ -200,7 +202,8 @@ class ClaudeAnalyst:
         }
         prompt = (
             "다음은 오늘 국내 증시 관련 뉴스 후보입니다. "
-            f"한국 증시 전체에 중요한 순서로 {k + 3}건을 고르세요. "
+            f"오늘 코스피·코스닥 지수 움직임에 영향이 가장 컸던 순서로 {k + 3}건을 고르세요"
+            "(지수 전체를 움직인 수급·매크로·대형주 이슈를 개별 종목 이슈보다 우선). "
             "같은 사건을 다룬 기사는 하나만 고르고 나머지는 서로 다른 주제로 채우되, "
             "해외 개별 종목 기사처럼 한국 증시와 무관한 것은 제외하세요(후보가 부족할 때만 적게). "
             "각 기사에 입력 내용만으로 한 줄 요약(80자 이내)을 쓰세요.\n\n"

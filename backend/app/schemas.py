@@ -54,8 +54,10 @@ class EconEvent(BaseModel):
     previous: str | None = None
     impact: str | None = None
     provider: str
-    # 공식 시각이 아니라 관례 시각으로 채운 경우의 설명(예: "관례 시각·미확정") — 화면에 함께 표시
+    # 공식 시각이 아니라 관례 시각으로 채운 경우의 설명(데이터에만 보존, 화면 표시는 안 함)
     time_note: str | None = None
+    # 최근 발표 수치(FRED): {"text", "label", "points": [{period, text, dir}], "extra"}
+    history: dict | None = None
 
 
 class EarningsEvent(BaseModel):
