@@ -1,0 +1,20 @@
+# 점검용(수동 실행): 공식 경제일정 출처(BLS·BEA·연준)의 실제 응답 형식 확인
+name: probe-calendars
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: backend/.python-version
+      - run: pip install "httpx>=0.28"
+      - run: python backend/scripts/probe_calendars.py
