@@ -124,6 +124,42 @@ async def test_kr_watchlist_builds_us_report_if_missing(sessions, no_sleep):
 
 
 @respx.mock
+async def test_dry_run_does_not_store_reports(sessions, no_sleep):
+    """테스트 실행(save=False)은 화면에 보이는 리포트를 덮어쓰지 않는다."""
+    mock_finnhub()
+    respx.get("https://financialmodelingprep.com/stable/quote").mock(
+        return_value=httpx.Response(402)
+    )
+    st = settings()
+    p = build_providers(st, sessions)
+    us = await generate(US_CLOSE, st, p, no_llm(), sessions, now=NOW, save=False)
+    kr = await generate(KR_WATCHLIST, st, p, no_llm(), sessions, now=NOW, save=False)
+    await p.aclose()
+    assert len(us["data"]["news"]) == 10 and kr["data"]["macro_points"]
+    with sessions() as s:
+        assert store.get_report(s, US_CLOSE) is None
+        assert store.get_report(s, KR_WATCHLIST) is None
+
+
+def test_dry_run_summary_lists_issues_and_calendar():
+    from app.jobs.run import _dry_run_summary
+
+    out = _dry_run_summary(
+        {
+            "status": "ok",
+            "sources": [{"name": "네이버 검색 API(뉴스)"}],
+            "data": {
+                "indices": [{"name": "KOSPI", "close": 1.0, "provider": "키움증권 REST API"}],
+                "issue_method": "llm",
+                "issues": [{"title": "t", "summary": "s", "summary_origin": "llm", "url": "u"}],
+                "calendar": {"rows": [{"event": "CPI", "kind": "경제지표", "et": "e", "kst": "k"}]},
+            },
+        }
+    )
+    assert "네이버 검색 API(뉴스)" in out and '"CPI"' in out and '"llm"' in out
+
+
+@respx.mock
 async def test_kr_close_and_calendar(sessions, no_sleep):
     now = datetime(2026, 9, 29, 15, 40, tzinfo=KST).astimezone(UTC)
     respx.post("https://openapi.koreainvestment.com:9443/oauth2/tokenP").mock(
@@ -227,7 +263,7 @@ def test_job_cli_exit_code(monkeypatch):
     results = {"us-close": {"status": "failed"}, "kr-watchlist": {"status": "partial"}}
     calls: list[str] = []
 
-    async def fake_run_job(rt, force=False, settings=None):
+    async def fake_run_job(rt, force=False, settings=None, dry_run=False):
         calls.append(rt)
         return results[rt] | {"report_type": rt}
 

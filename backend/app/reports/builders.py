@@ -374,7 +374,9 @@ async def generate(
     analyst: ClaudeAnalyst,
     sessions: sessionmaker[Session],
     now: datetime | None = None,
+    save: bool = True,
 ) -> dict:
+    """save=False 면 리포트를 DB 에 저장하지 않는다(테스트 실행 — 화면에 보이는 리포트는 그대로)."""
     ctx = Ctx(settings, providers, analyst, sessions, now=now or now_utc())
     if report_type == US_CLOSE:
         payload = await build_us_close(ctx)
@@ -384,8 +386,9 @@ async def generate(
         if row is None:
             sub = Ctx(settings, providers, analyst, sessions, now=ctx.now)
             us = await build_us_close(sub)
-            with sessions() as s:
-                store.upsert_report(s, US_CLOSE, kst_today(ctx.now), us, us["status"])
+            if save:
+                with sessions() as s:
+                    store.upsert_report(s, US_CLOSE, kst_today(ctx.now), us, us["status"])
         else:
             us = row.payload
         payload = await build_kr_watchlist(ctx, us)
@@ -393,6 +396,7 @@ async def generate(
         payload = await build_kr_close(ctx)
     else:
         raise ValueError(f"unknown report type: {report_type}")
-    with sessions() as s:
-        store.upsert_report(s, report_type, kst_today(ctx.now), payload, payload["status"])
+    if save:
+        with sessions() as s:
+            store.upsert_report(s, report_type, kst_today(ctx.now), payload, payload["status"])
     return payload

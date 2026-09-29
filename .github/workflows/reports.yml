@@ -33,6 +33,10 @@ on:
         description: "한국 휴장일에도 실행"
         type: boolean
         default: false
+      dry_run:
+        description: "테스트 실행 (저장·알림 없이 결과를 로그로만 확인)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -64,6 +68,7 @@ jobs:
           SCHEDULE: ${{ github.event.schedule }}
           INPUT_REPORTS: ${{ inputs.reports }}
           INPUT_FORCE: ${{ inputs.force }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
         run: |
           MORNING="us-close kr-watchlist"
           AFTERNOON="kr-close-and-calendar"
@@ -82,6 +87,7 @@ jobs:
           fi
           FLAGS=""
           if [ "$INPUT_FORCE" = "true" ]; then FLAGS="--force"; fi
+          if [ "$INPUT_DRY_RUN" = "true" ]; then FLAGS="$FLAGS --dry-run"; fi
           echo "types=$TYPES" >> "$GITHUB_OUTPUT"
           echo "flags=$FLAGS" >> "$GITHUB_OUTPUT"
           echo "실행할 리포트: $TYPES $FLAGS"
