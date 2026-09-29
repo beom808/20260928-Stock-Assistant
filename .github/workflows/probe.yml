@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version-file: backend/.python-version
-      - run: pip install ./backend
+      - run: pip install "./backend[push]"
       - run: python backend/scripts/probe_calendars.py
       - name: FRED release names
         env:
@@ -26,3 +26,8 @@ jobs:
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
         run: python backend/scripts/probe_fmp.py
+      - name: FCM credentials (no message sent)
+        env:
+          FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
+          FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
+        run: python backend/scripts/probe_fcm.py
