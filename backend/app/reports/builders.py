@@ -343,7 +343,16 @@ async def _us_calendar(ctx: Ctx) -> dict:
             ctx.src("Financial Modeling Prep earnings-calendar", "미국 실적발표 일정")
         except ApiError as e2:
             ctx.errors.append(f"실적캘린더 수집 실패: {e2}")
-    cal = build_calendar(econ, earnings, ctx.now, set(ctx.settings.watchlist))
+    watch = set(ctx.settings.watchlist)
+    # 진단용: 받은 실적 일정 수와 관심 종목 매칭 결과(표가 비었을 때 원인 확인)
+    log.info(
+        "실적캘린더 %d건 수신(%s~%s ET), 관심 종목: %s",
+        len(earnings),
+        et_today,
+        d_to,
+        sorted(f"{e.symbol} {e.date_et} {e.hour or '-'}" for e in earnings if e.symbol in watch),
+    )
+    cal = build_calendar(econ, earnings, ctx.now, watch)
     ctx.warnings.extend(cal.pop("warnings"))
     return cal
 
