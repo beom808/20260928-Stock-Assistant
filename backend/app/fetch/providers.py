@@ -66,7 +66,7 @@ def build_providers(
         naver=NaverNewsFetcher(
             nv, settings.naver_client_id, settings.naver_client_secret, settings.naver_api
         ),
-        official=OfficialCalendarFetcher(off),
+        official=OfficialCalendarFetcher(off, settings.fred_api_key),
         http=http,
         kiwoom_http=kiwoom_http,
     )

@@ -54,6 +54,8 @@ class EconEvent(BaseModel):
     previous: str | None = None
     impact: str | None = None
     provider: str
+    # 공식 시각이 아니라 관례 시각으로 채운 경우의 설명(예: "관례 시각·미확정") — 화면에 함께 표시
+    time_note: str | None = None
 
 
 class EarningsEvent(BaseModel):

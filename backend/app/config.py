@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     # FMP 경제캘린더는 무료 플랜 미지원(HTTP 402 확인) → 기본은 BEA·연준 공식 일정만 사용.
     # 유료 플랜이면 true 로 켜서 함께 사용
     fmp_econ_calendar: bool = False
+    # FRED API(무료 키): CPI·고용·PPI 등 BLS 지표 발표일 (BLS 는 자동 요청 차단)
+    fred_api_key: str = ""
 
     kis_app_key: str = ""
     kis_app_secret: str = ""

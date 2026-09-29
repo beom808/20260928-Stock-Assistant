@@ -73,6 +73,20 @@ AI 는 후보 목록 안에서 고르기만 하고, 원문 링크·제목·수�
 
 > 무료 한도 하루 250회로 알려짐(이 앱은 하루 5회 수준). 경제캘린더의 무료 제공 여부는 확인하지 못함.
 
+## 3-1. CPI·고용·PPI 발표일 — FRED API (무료 키)
+
+BLS(미 노동통계국)는 자동 요청을 차단(403)하므로, 세인트루이스 연준 FRED 의 발표일 데이터를 쓴다.
+FRED 는 **날짜만** 주므로 BLS 관례 발표 시각(08:30 ET, JOLTS 10:00 ET)을 붙여
+"관례 시각·미확정" 으로 표시한다.
+
+1. https://fred.stlouisfed.org → 오른쪽 위 **My Account** → 계정 만들기(무료)
+2. 로그인 후 **API Keys** 메뉴 (https://fredaccount.stlouisfed.org/apikeys) → **Request API Key**
+3. 용도 설명(예: `personal stock research dashboard, economic release calendar`) 입력 → 약관 동의 → 발급
+4. 32자리 키를 GitHub Secrets 에 `FRED_API_KEY` 로 등록
+5. 확인: Run workflow(`afternoon`, **dry_run 체크**) → 로그의 캘린더에 CPI·고용 등이 기간 안에 있으면 표시
+
+메뉴 이름은 화면에서 확인. 🔐 키는 채팅·코드에 붙여 넣지 말 것.
+
 ## 4. 발행 알림 푸시 — Firebase Cloud Messaging (웹 푸시)
 
 리포트가 발행되면(07:00, 15:40) 구독한 브라우저로 알림을 보낸다.

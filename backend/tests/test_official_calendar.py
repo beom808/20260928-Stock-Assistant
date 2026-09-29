@@ -90,3 +90,62 @@ async def test_sources_are_independent_and_fed_bom_is_handled(sessions, no_sleep
     assert len(failed) == 1 and failed[0].startswith("BEA")
     ua = respx.calls.last.request.headers["User-Agent"]
     assert ua.startswith("stock-assistant/")
+
+
+FRED = {
+    "release_dates": [
+        {"release_id": 10, "release_name": "Consumer Price Index", "date": "2026-10-01"},
+        {"release_id": 10, "release_name": "Consumer Price Index", "date": "2026-10-01"},
+        {"release_id": 50, "release_name": "Employment Situation", "date": "2026-10-02"},
+        {"release_id": 192, "release_name": "Job Openings and Labor Turnover Survey",
+         "date": "2026-09-30"},
+        {"release_id": 1, "release_name": "Some Other Release", "date": "2026-09-30"},
+    ]
+}  # fmt: skip
+
+
+def test_parse_fred_uses_convention_times_and_marks_them():
+    from app.fetch.official import CONVENTION_NOTE, parse_fred
+
+    ev, others = parse_fred(FRED, D0, D1)
+    assert others == ["Some Other Release"]
+    assert sorted(e.name[:4] for e in ev) == ["CPI ", "JOLT"]  # 10/02 는 범위 밖, 중복 제거
+    cpi = next(e for e in ev if e.name.startswith("CPI"))
+    assert cpi.at_utc == datetime(2026, 10, 1, 12, 30, tzinfo=UTC)  # 08:30 EDT
+    assert cpi.time_note == CONVENTION_NOTE
+    jolts = next(e for e in ev if e.name.startswith("JOLTS"))
+    assert jolts.at_utc == datetime(2026, 9, 30, 14, 0, tzinfo=UTC)  # 10:00 EDT
+
+
+def test_convention_time_is_labelled_not_confirmed():
+    from app.fetch.official import parse_fred
+    from app.transform.calendar import econ_rows
+
+    ev, _ = parse_fred(FRED, D0, D1)
+    start = datetime(2026, 9, 29, 6, 40, tzinfo=UTC)
+    rows = econ_rows(ev, start, datetime(2026, 10, 2, tzinfo=UTC))
+    cpi = next(r for r in rows if r["event"].startswith("CPI"))
+    assert cpi["et"] == "10/01 08:30 EDT (관례 시각·미확정)"
+    assert cpi["kst"] == "10/01 21:30 KST (관례 시각·미확정)"
+    assert cpi["time_confirmed"] is False
+
+
+@respx.mock
+async def test_fred_key_is_sent_as_param_and_not_in_cache_key(sessions, no_sleep):
+    respx.get(BEA_URL).mock(return_value=httpx.Response(200, json=BEA))
+    respx.get(FED_URL).mock(return_value=httpx.Response(200, json=FED))
+    route = respx.get("https://api.stlouisfed.org/fred/releases/dates").mock(
+        return_value=httpx.Response(200, json=FRED)
+    )
+    p = build_providers(Settings(_env_file=None, fred_api_key="k" * 32), sessions)
+    events, failed = await p.official.economic_calendar(D0, D1)
+    await p.aclose()
+    assert failed == []
+    req = route.calls.last.request
+    assert req.url.params["api_key"] == "k" * 32
+    assert req.url.params["include_release_dates_with_no_data"] == "true"
+    assert any(e.name.startswith("CPI") for e in events)
+    from app.db.models import ApiCache
+
+    with sessions() as s:
+        assert all("k" * 32 not in (c.cache_key or "") for c in s.query(ApiCache).all())

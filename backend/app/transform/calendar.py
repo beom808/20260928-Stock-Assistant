@@ -119,8 +119,10 @@ def econ_rows(events: list[EconEvent], start: datetime, end: datetime) -> list[d
                 _fmt_et(ev.at_utc),
                 _fmt_kst(ev.at_utc),
                 ev.at_utc,
-                True,
+                ev.time_note is None,
             )
+            if ev.time_note:  # 관례 시각 — 확정 시각처럼 보이지 않게 함께 표시
+                et_s, kst_s = f"{et_s} ({ev.time_note})", f"{kst_s} ({ev.time_note})"
         note = None
         if kind == "FOMC" and ("meeting" in ev.name.lower() or "decision" in ev.name.lower()):
             note = "기자회견은 통상 성명 발표 30분 후"

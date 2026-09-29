@@ -326,17 +326,24 @@ async def _kr_indices(ctx: Ctx) -> list[dict]:
 async def _us_calendar(ctx: Ctx) -> dict:
     et_today = to_et(ctx.now).date()
     d_to = et_today + timedelta(days=3)
-    # 경제지표·FOMC: BEA·연준 공식 일정(무료) — BLS(CPI·고용·PPI)는 자동 수집 차단으로 미포함
-    econ, failed = await ctx.providers.official.economic_calendar(et_today, d_to)
-    if len(failed) < 2:
-        ctx.src("BEA·연준 공식 발표 일정 (BLS 지표 미포함)", "미국 경제지표·FOMC 일정")
+    # 경제지표·FOMC: BEA·연준 공식 일정(무료) + FRED(키 설정 시, BLS 지표 발표일·관례 시각)
+    official = ctx.providers.official
+    econ, failed = await official.economic_calendar(et_today, d_to)
+    if sum(f.startswith(("BEA", "연준")) for f in failed) < 2:
+        ctx.src("BEA·연준 공식 발표 일정", "미국 경제지표·FOMC 일정")
+    if official.fred_api_key and not any(f.startswith("FRED") for f in failed):
+        ctx.src("FRED 발표일 (BLS 등, 시각은 관례)", "CPI·고용·PPI 등 발표일")
+        log.info("FRED 기간 내 기타 발표(표 제외): %s", official.fred_other_releases)
+    elif not official.fred_api_key:
+        ctx.src("CPI·고용·PPI(BLS) 일정 미포함 — FRED_API_KEY 미설정", "안내")
     if ctx.settings.fmp_econ_calendar:
         try:
             econ += await ctx.providers.fmp.economic_calendar(et_today, d_to)
             ctx.src("Financial Modeling Prep economic-calendar", "미국 경제지표 일정")
         except ApiError as e:
             failed.append(f"FMP 경제캘린더 수집 실패: {e}")
-    if len(failed) >= 2 and not econ:
+    attempted = 2 + bool(official.fred_api_key) + bool(ctx.settings.fmp_econ_calendar)
+    if len(failed) >= attempted:  # 모든 출처가 실패했을 때만 오류(일정이 없는 날은 정상)
         ctx.errors.append("경제캘린더 수집 실패: " + " / ".join(failed))
     else:
         ctx.warnings.extend(failed)
