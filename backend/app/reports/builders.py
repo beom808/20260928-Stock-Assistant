@@ -105,8 +105,14 @@ async def _us_indices(ctx: Ctx, session: date) -> list[dict]:
     for name, sym, etf, etf_note in US_INDICES:
         q: IndexQuote | None = None
         try:
-            q = await ctx.providers.fmp.index_quote(name, sym)
-            ctx.src("Financial Modeling Prep", "미국 지수 시세", q.as_of)
+            try:  # 공식 종가(일별 EOD) 우선 → 없으면 실시간 시세
+                q = await ctx.providers.fmp.index_eod(name, sym, session)
+                ctx.src("Financial Modeling Prep (일별 종가)", "미국 지수 종가", q.as_of)
+            except ApiError as e0:
+                if e0.kind in ("config", "quota"):
+                    raise
+                q = await ctx.providers.fmp.index_quote(name, sym)
+                ctx.src("Financial Modeling Prep", "미국 지수 시세", q.as_of)
         except ApiError as e:
             ctx.warnings.append(f"{name} 지수 시세 실패({e.kind}) → ETF 프록시 시도")
             try:

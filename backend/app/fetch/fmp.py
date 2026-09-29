@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from app.fetch.http import ApiClient, ApiError
@@ -34,6 +34,47 @@ class FmpFetcher:
             raise ApiError(self.provider, "config", "FMP_API_KEY 미설정")
         return await self.client.get_json(
             f"{self.base}{path}", params={**params, "apikey": self.api_key}, ttl=ttl
+        )
+
+    async def index_eod(self, name: str, symbol: str, session: date) -> IndexQuote:
+        """기준 세션의 공식 종가(일별 EOD). 등락은 직전 거래일 종가로 직접 계산한다.
+
+        2026-09-29 점검: /quote 는 마감 직전(15:59 ET) 값이 남는 경우가 있었다(S&P 500 7,684.50
+        vs 종가 7,683.69). /historical-price-eod/light 는 공식 종가와 일치했다.
+        (/full 의 change·changePercent 는 '시가 대비'라 전일 대비 등락으로 쓰면 안 된다)
+        """
+        res = await self._get(
+            "/historical-price-eod/light",
+            {
+                "symbol": symbol,
+                "from": (session - timedelta(days=10)).isoformat(),
+                "to": session.isoformat(),
+            },
+            timedelta(hours=1),
+        )
+        rows = []
+        for r in res.data if isinstance(res.data, list) else []:
+            try:
+                rows.append((date.fromisoformat(str(r["date"])), float(r["price"])))
+            except (KeyError, TypeError, ValueError):
+                continue
+        rows.sort(reverse=True)
+        if not rows or rows[0][0] != session:
+            raise ApiError(self.provider, "parse", f"{symbol} {session} 종가 없음(아직 미반영)")
+        close = rows[0][1]
+        change = pct = None
+        if len(rows) > 1 and rows[1][1]:
+            prev = rows[1][1]
+            change = round(close - prev, 2)
+            pct = round(change / prev * 100, 2)
+        return IndexQuote(
+            name=name,
+            symbol=symbol,
+            close=close,
+            change=change,
+            change_pct=pct,
+            as_of=datetime.combine(session, time(16, 0), tzinfo=ET).astimezone(UTC),
+            provider="FMP (일별 종가)",
         )
 
     async def index_quote(self, name: str, symbol: str) -> IndexQuote:

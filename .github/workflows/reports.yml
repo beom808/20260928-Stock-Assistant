@@ -37,6 +37,10 @@ on:
         description: "테스트 실행 (저장·알림 없이 결과를 로그로만 확인)"
         type: boolean
         default: false
+      skip_ai:
+        description: "AI(Anthropic) 호출 끄기 — 비용 없이 테스트할 때 (규칙 기반으로 동작)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -118,7 +122,12 @@ jobs:
           FCM_SERVICE_ACCOUNT_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
           TYPES: ${{ steps.select.outputs.types }}
           FLAGS: ${{ steps.select.outputs.flags }}
+          SKIP_AI: ${{ inputs.skip_ai }}
         run: |
+          if [ "$SKIP_AI" = "true" ]; then
+            export ANTHROPIC_API_KEY=""
+            echo "AI 호출 끔(skip_ai) — 규칙 기반으로 실행"
+          fi
           # DATABASE_URL 이 없으면 러너 안의 임시 SQLite 에 저장되고 사라지므로 즉시 실패시킨다
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::DATABASE_URL secret 이 설정되지 않았습니다 (Settings → Secrets and variables → Actions)"

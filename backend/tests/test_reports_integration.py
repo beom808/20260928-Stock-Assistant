@@ -45,7 +45,12 @@ def news(i: int, ts: int, headline: str, url: str = "https://example.com/n") -> 
     }
 
 
+EOD_URL = "https://financialmodelingprep.com/stable/historical-price-eod/light"
+
+
 def mock_finnhub(ok_news: bool = True):
+    # 지수 일별 종가(EOD)는 기본으로 '플랜 미지원' → 기존 시세/ETF 경로를 검증한다
+    respx.get(EOD_URL).mock(return_value=httpx.Response(402))
     ts = int(datetime(2026, 9, 28, 20, 0, tzinfo=UTC).timestamp())
     general = [news(i, ts - i * 60, f"Fed headline {i} on inflation") for i in range(12)]
     respx.get("https://finnhub.io/api/v1/news").mock(
@@ -398,3 +403,38 @@ async def test_kr_issues_topped_up_when_llm_picks_fewer(sessions):
     titles = [o["title"] for o in out]
     assert len(set(titles)) == len(titles)  # 같은 제목은 한 번만
     assert all(o["summary_origin"] == "api" for o in out[1:])
+
+
+@respx.mock
+async def test_us_index_uses_official_eod_close_and_computes_change(sessions, no_sleep):
+    """EOD 종가 우선 · 등락은 전일 종가로 계산(FMP full 의 change 는 시가 대비라 쓰지 않음)."""
+    mock_finnhub()
+    rows = {
+        "^GSPC": [("2026-09-28", 7683.69), ("2026-09-25", 7743.41)],
+        "^IXIC": [("2026-09-28", 26820.38), ("2026-09-25", 27068.72)],
+        "^DJI": [("2026-09-25", 51828.62)],  # 기준 세션(9/28) 종가 아직 없음 → /quote 로 대체
+    }
+
+    def eod(request):
+        sym = request.url.params["symbol"]
+        return httpx.Response(
+            200, json=[{"symbol": sym, "date": d, "price": v} for d, v in rows[sym]]
+        )
+
+    respx.get(EOD_URL).mock(side_effect=eod)
+    ts = int(datetime(2026, 9, 28, 20, 36, tzinfo=UTC).timestamp())
+    respx.get("https://financialmodelingprep.com/stable/quote").mock(
+        return_value=httpx.Response(
+            200, json=[{"price": 51481.51, "change": -347.11, "changePercentage": -0.66973,
+                        "timestamp": ts}]
+        )
+    )  # fmt: skip
+    st = settings()
+    p = build_providers(st, sessions)
+    payload = await generate(US_CLOSE, st, p, no_llm(), sessions, now=NOW, save=False)
+    await p.aclose()
+    spx, ndx, dji = payload["data"]["indices"]
+    assert (spx["close"], spx["change"], spx["change_pct"]) == (7683.69, -59.72, -0.77)
+    assert spx["provider"] == "FMP (일별 종가)" and not spx.get("is_proxy")
+    assert (ndx["change"], ndx["change_pct"]) == (-248.34, -0.92)
+    assert dji["close"] == 51481.51 and dji["provider"] == "FMP"
