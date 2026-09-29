@@ -20,6 +20,10 @@ def main() -> int:
         print("FMP_API_KEY 없음")
         return 1
     with httpx.Client(timeout=30) as c:
+        for sym in ("USDKRW", "^TNX", "DX-Y.NYB", "CLUSD", "^VIX", "ES=F", "NQ=F"):
+            r = c.get(BASE + "/quote", params={"symbol": sym, "apikey": key})
+            print(f"\n=== {sym} /quote: HTTP {r.status_code}")
+            print(r.text[:500])
         for sym in ("^GSPC", "^IXIC", "^DJI"):
             for path in PATHS:
                 params = {"symbol": sym, "apikey": key}
