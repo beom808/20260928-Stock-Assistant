@@ -65,6 +65,71 @@ FRED_RELEASES: dict[str, tuple[str, time]] = {
     "Job Openings and Labor Turnover Survey": ("JOLTS 구인·이직 (BLS)", time(10, 0)),
 }
 CONVENTION_NOTE = "관례 시각·미확정"
+
+FRED_OBS_URL = "https://api.stlouisfed.org/fred/series/observations"
+# 이벤트 표시 이름 앞부분 → (FRED 시리즈, units, 주기 M/W/Q, 값 형식, 설명)
+# units: lin=원값, chg=전기 대비 증감, pch=전기 대비 %, pc1=전년 대비 %
+HISTORY_SERIES: dict[str, tuple[str, str, str, str, str]] = {
+    "CPI": ("CPIAUCSL", "pc1", "M", "pct", "CPI 전년비"),
+    "고용보고서": ("PAYEMS", "chg", "M", "thous_signed", "비농업고용 증감"),
+    "PPI": ("PPIFIS", "pc1", "M", "pct", "PPI 최종수요 전년비"),
+    "소매판매": ("RSAFS", "pch", "M", "pct", "소매판매 전월비"),
+    "신규 실업수당": ("ICSA", "lin", "W", "count", "주간 신규 청구"),
+    "JOLTS": ("JTSJOL", "lin", "M", "thous", "구인 건수"),
+    "GDP": ("A191RL1Q225SBEA", "lin", "Q", "pct", "실질 GDP 연율"),
+    "PCE": ("PCEPI", "pc1", "M", "pct", "PCE 물가 전년비"),
+    "무역수지": ("BOPGSTB", "lin", "M", "usd_mn", "무역수지"),
+}
+HISTORY_N = 4  # 최근 발표 4회(당월 직전 발표 + 그 이전 3회)
+
+
+def history_spec(event_name: str) -> tuple[str, str, str, str, str] | None:
+    for prefix, spec in HISTORY_SERIES.items():
+        if event_name.startswith(prefix):
+            return spec
+    return None
+
+
+def _period(d: date, freq: str) -> str:
+    if freq == "W":
+        return f"{d:%m/%d}주"
+    if freq == "Q":
+        return f"{d.year % 100}년 {(d.month - 1) // 3 + 1}Q"
+    return f"{d.month}월"
+
+
+def _value(v: float, fmt: str) -> str:
+    if fmt == "pct":
+        return f"{v:.1f}%"
+    if fmt == "thous_signed":
+        return f"{v:+,.0f}천 명"
+    if fmt == "thous":
+        return f"{v:,.0f}천 건"
+    if fmt == "count":
+        return f"{v / 1000:,.0f}천 건"
+    if fmt == "usd_mn":
+        return f"{v / 100:,.0f}억 달러"
+    return f"{v:g}"
+
+
+def format_history(body: object, freq: str, fmt: str, label: str) -> str | None:
+    """FRED observations(최신순) → '8월 2.9% · 7월 2.7% · … (CPI 전년비, FRED)'. 없으면 None."""
+    obs = body.get("observations") if isinstance(body, dict) else None
+    parts: list[str] = []
+    for o in obs or []:
+        try:
+            d = date.fromisoformat(str(o.get("date")))
+            v = float(o.get("value"))
+        except (TypeError, ValueError):  # FRED 는 결측을 "." 로 준다
+            continue
+        parts.append(f"{_period(d, freq)} {_value(v, fmt)}")
+        if len(parts) >= HISTORY_N:
+            break
+    if not parts:
+        return None
+    return " · ".join(parts) + f" ({label}, FRED)"
+
+
 _TIME = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*([ap])\.?\s*m\.?\s*$", re.I)
 
 
@@ -206,6 +271,27 @@ class OfficialCalendarFetcher:
             url, headers=HEADERS, ttl=timedelta(hours=6), cache_if=_is_dict
         )
         return res.data
+
+    async def history(self, event_name: str) -> str | None:
+        """이벤트의 최근 발표 수치(최신 4회). FRED 키가 없거나 대상이 아니면 None."""
+        spec = history_spec(event_name)
+        if spec is None or not self.fred_api_key:
+            return None
+        series, units, freq, fmt, label = spec
+        res = await self.client.get_json(
+            FRED_OBS_URL,
+            params={
+                "api_key": self.fred_api_key,
+                "file_type": "json",
+                "series_id": series,
+                "units": units,
+                "sort_order": "desc",
+                "limit": HISTORY_N + 2,  # 결측(".") 대비 여유
+            },
+            ttl=timedelta(hours=6),
+            cache_if=_is_dict,
+        )
+        return format_history(res.data, freq, fmt, label)
 
     async def economic_calendar(
         self, d_from: date, d_to: date

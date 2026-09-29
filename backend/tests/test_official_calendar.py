@@ -149,3 +149,57 @@ async def test_fred_key_is_sent_as_param_and_not_in_cache_key(sessions, no_sleep
 
     with sessions() as s:
         assert all("k" * 32 not in (c.cache_key or "") for c in s.query(ApiCache).all())
+
+
+def test_format_history_monthly_weekly_quarterly_and_missing():
+    from app.fetch.official import format_history, history_spec
+
+    cpi = {"observations": [
+        {"date": "2026-08-01", "value": "2.94"}, {"date": "2026-07-01", "value": "."},
+        {"date": "2026-06-01", "value": "2.7"}, {"date": "2026-05-01", "value": "2.44"},
+        {"date": "2026-04-01", "value": "2.3"}, {"date": "2026-03-01", "value": "2.1"},
+    ]}  # fmt: skip
+    assert history_spec("CPI 소비자물가 (BLS Consumer Price Index)")[0] == "CPIAUCSL"
+    assert format_history(cpi, "M", "pct", "CPI 전년비") == (
+        "8월 2.9% · 6월 2.7% · 5월 2.4% · 4월 2.3% (CPI 전년비, FRED)"
+    )
+    claims = {"observations": [{"date": "2026-09-19", "value": "231000"},
+                               {"date": "2026-09-12", "value": "218000"}]}  # fmt: skip
+    assert history_spec("신규 실업수당 청구 initial jobless claims (DOL)")[0] == "ICSA"
+    assert format_history(claims, "W", "count", "주간 신규 청구") == (
+        "09/19주 231천 건 · 09/12주 218천 건 (주간 신규 청구, FRED)"
+    )
+    gdp = {"observations": [{"date": "2026-04-01", "value": "3.1"}]}
+    assert format_history(gdp, "Q", "pct", "실질 GDP 연율").startswith("26년 2Q 3.1%")
+    assert format_history({"observations": []}, "M", "pct", "x") is None
+    assert history_spec("FOMC 금리 결정·성명 (FOMC Meeting)") is None
+
+
+@respx.mock
+async def test_calendar_rows_carry_recent_history(sessions, no_sleep):
+    from app.reports.builders import Ctx, _us_calendar
+    from tests.helpers import no_llm
+
+    respx.get(BEA_URL).mock(return_value=httpx.Response(200, json=BEA))
+    respx.get(FED_URL).mock(return_value=httpx.Response(200, json={"events": []}))
+    respx.get("https://api.stlouisfed.org/fred/releases/dates").mock(
+        return_value=httpx.Response(200, json=FRED)
+    )
+    obs = respx.get("https://api.stlouisfed.org/fred/series/observations").mock(
+        return_value=httpx.Response(
+            200, json={"observations": [{"date": "2026-08-01", "value": "2.5"}]}
+        )
+    )
+    respx.get("https://finnhub.io/api/v1/calendar/earnings").mock(
+        return_value=httpx.Response(200, json={"earningsCalendar": []})
+    )
+    st = Settings(_env_file=None, fred_api_key="k" * 32, finnhub_api_key="fh")
+    p = build_providers(st, sessions)
+    now = datetime(2026, 9, 29, 13, 0, tzinfo=UTC)  # 48시간 창이 10/01 08:30 ET CPI 를 포함
+    cal = await _us_calendar(Ctx(st, p, no_llm(), sessions, now=now))
+    await p.aclose()
+    by = {r["event"][:4]: r for r in cal["rows"]}
+    assert by["CPI "]["previous"].startswith("8월 2.5%")
+    assert by["GDP "]["previous"].startswith("26년 3Q")  # 2026-08-01 → 3분기
+    series = {c.request.url.params["series_id"] for c in obs.calls}
+    assert {"CPIAUCSL", "JTSJOL", "A191RL1Q225SBEA"} <= series

@@ -344,6 +344,18 @@ async def _us_calendar(ctx: Ctx) -> dict:
             ctx.src("Financial Modeling Prep economic-calendar", "미국 경제지표 일정")
         except ApiError as e:
             failed.append(f"FMP 경제캘린더 수집 실패: {e}")
+    # 추세 판단용: 지표마다 최근 4회 발표 수치(FRED)를 '이전' 칸에 붙인다
+    hist_cache: dict[str, str | None] = {}
+    for ev in econ:
+        if ev.previous:
+            continue
+        if ev.name not in hist_cache:
+            try:
+                hist_cache[ev.name] = await official.history(ev.name)
+            except ApiError as e:
+                hist_cache[ev.name] = None
+                ctx.warnings.append(f"{ev.name} 과거 수치 조회 실패({e.kind})")
+        ev.previous = hist_cache[ev.name]
     attempted = 2 + bool(official.fred_api_key) + bool(ctx.settings.fmp_econ_calendar)
     if len(failed) >= attempted:  # 모든 출처가 실패했을 때만 오류(일정이 없는 날은 정상)
         ctx.errors.append("경제캘린더 수집 실패: " + " / ".join(failed))
