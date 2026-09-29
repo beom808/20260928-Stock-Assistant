@@ -7,9 +7,9 @@ const BASE = (process.env.API_BASE_URL ?? "http://localhost:8000").replace(/\/+$
 const TIMEOUT_MS = 8000;
 
 export const REPORT_META: Record<ReportType, { title: string; slot: string }> = {
-  "us-close": { title: "전일 미국 증시 마감", slot: "07:00 KST" },
-  "kr-watchlist": { title: "한국장 관전 포인트", slot: "07:00 KST" },
-  "kr-close-and-calendar": { title: "국내 장 마감 + 익일 미국 캘린더", slot: "15:30 KST 장 마감 후" },
+  "us-close": { title: "전일 미국 증시 마감", slot: "07:00 발행" },
+  "kr-watchlist": { title: "국장 관전 포인트", slot: "07:00 발행" },
+  "kr-close-and-calendar": { title: "국장 마감 + 익일 미국 캘린더", slot: "15:40 발행 · 수 분 지연 가능" },
 };
 
 export const isReportType = (v: string): v is ReportType => v in REPORT_META;

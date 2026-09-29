@@ -216,7 +216,9 @@ def earnings_rows(
             et_s = f"{md_wd(ev.date_et)} 발표 시점 미정"
             kst_s = "시각 미정"
             sort_t = time(23, 59)
-        eps = f"EPS 예상 {ev.eps_estimate:g}" if isinstance(ev.eps_estimate, (int, float)) else None
+        eps = None
+        if isinstance(ev.eps_estimate, (int, float)):
+            eps = f"EPS 예상 {round(ev.eps_estimate, 2):g}"
         rows.append(
             {
                 "event": f"{ev.symbol} 실적 발표",

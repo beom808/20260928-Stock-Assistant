@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchHistory, fetchReport, isReportType, REPORT_META } from "@/lib/api";
+import { withWeekday } from "@/lib/format";
 import type { KrCloseData, KrWatchlistData, UsCloseData } from "@/lib/types";
 import { KrCloseView, KrWatchlistView, UsCloseView } from "@/components/ReportViews";
 
@@ -52,7 +53,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
               href={`/report/${type}?date=${h.report_date_kst}`}
               className={`chip ${h.report_date_kst === validDate ? "active" : ""}`}
             >
-              {h.report_date_kst.slice(5)}
+              {withWeekday(h.report_date_kst).slice(5)}
               {h.status !== "ok" ? " ⚠" : ""}
             </Link>
           ))}

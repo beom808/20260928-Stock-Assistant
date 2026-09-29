@@ -36,6 +36,35 @@ export interface IndexQuote {
   error?: string;
 }
 
+export interface FxRate {
+  pair: string;
+  rate: number;
+  change: number | null;
+  change_pct: number | null;
+  date: string;
+  provider: string;
+  note: string;
+}
+
+export interface MacroStat {
+  name: string;
+  value?: number | null;
+  unit?: string;
+  change?: number | null;
+  date?: string | null;
+  provider?: string;
+  note?: string | null;
+  error?: string;
+}
+
+export interface InvestorFlow {
+  market: string;
+  unit: string;
+  foreign: number | null;
+  institution: number | null;
+  retail: number | null;
+}
+
 export interface UsNews {
   rank: number;
   title: string;
@@ -57,6 +86,8 @@ export interface UsCloseData {
   session_close_kst: string;
   session_close_tz: string;
   indices: IndexQuote[];
+  fx?: FxRate | null;
+  macro?: MacroStat[];
   news: UsNews[];
   news_window_kst: string;
   ranking_method: "llm" | "rules";
@@ -68,7 +99,12 @@ export interface KrCompany {
   name: string;
   market: string;
   relevance: number;
-  scores: Record<"same_industry" | "supply_chain" | "sensitivity" | "theme", number>;
+  // −100~+100 (+ 수혜 / − 악재). 방향 미판정이면 null. 2026-09-29 이전 리포트에는 없음
+  score?: number | null;
+  label?: string;
+  scores: Partial<Record<"supply_chain" | "sensitivity" | "theme", number>> | null;
+  magnitudes?: Record<"supply_chain" | "sensitivity" | "theme", number>;
+  llm_rationale?: string | null;
   rationale: string;
   rationale_origin: "rule" | "llm";
 }
@@ -85,7 +121,6 @@ export interface WatchSector {
 }
 
 export interface KrWatchlistData {
-  notice: string;
   us_session_date_et: string | null;
   method: "rules" | "hybrid";
   weights: Record<string, number>;
@@ -110,6 +145,12 @@ export interface CalendarRow {
   kst: string;
   consensus: string | null;
   previous: string | null;
+  history?: {
+    text: string;
+    label: string;
+    points: { period: string; text: string; dir: "up" | "down" | "flat" | null }[];
+    extra: string | null;
+  } | null;
   time_confirmed: boolean;
   note: string | null;
   provider: string;
@@ -117,6 +158,8 @@ export interface CalendarRow {
 
 export interface KrCloseData {
   indices: IndexQuote[];
+  fx?: FxRate | null;
+  investor_flows?: InvestorFlow[];
   issues: KrIssue[];
   issue_method: string;
   us_calendar: { window_kst: string; rows: CalendarRow[] };

@@ -24,3 +24,17 @@ jobs:
           KIWOOM_APP_SECRET: ${{ secrets.KIWOOM_APP_SECRET }}
           KIWOOM_PROXY_URL: ${{ secrets.KIWOOM_PROXY_URL }}
         run: python backend/scripts/probe_kiwoom_flows.py
+      - name: Live API push endpoints (Render)
+        run: |
+          API=https://stock-assistant-api-7oz1.onrender.com
+          for i in 1 2 3 4 5 6; do
+            code=$(curl -s -o /tmp/c.json -w "%{http_code}" --max-time 90 "$API/push/count" || true)
+            echo "GET /push/count → $code $(cat /tmp/c.json 2>/dev/null)"
+            [ "$code" = "200" ] && break
+            sleep 20
+          done
+          # 브라우저 사전 요청(CORS preflight) — Netlify 주소에서 POST 허용 여부
+          curl -s -o /dev/null -D - -X OPTIONS "$API/push/unregister" \
+            -H "Origin: https://stockassistant2.netlify.app" \
+            -H "Access-Control-Request-Method: POST" \
+            -H "Access-Control-Request-Headers: content-type" | grep -i -E "^HTTP|access-control-allow" || true

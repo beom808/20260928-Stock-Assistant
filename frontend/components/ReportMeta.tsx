@@ -1,3 +1,4 @@
+import { withWeekday } from "@/lib/format";
 import type { Envelope } from "@/lib/types";
 
 const STATUS_LABEL = { ok: "정상", partial: "일부 데이터 누락", failed: "생성 실패" } as const;
@@ -7,8 +8,8 @@ export function ReportMeta({ report }: { report: Envelope<unknown> }) {
     <div className="meta">
       <div className="meta-row">
         <span className={`badge status-${report.status}`}>{STATUS_LABEL[report.status]}</span>
-        <span>생성 시각 <b>{report.generated_at_kst}</b></span>
-        <span>기준일 {report.report_date_kst} (KST)</span>
+        <span>생성 시각 <b>{withWeekday(report.generated_at_kst)}</b></span>
+        <span>기준일 {withWeekday(report.report_date_kst)} (KST)</span>
         {report.revision && report.revision > 1 ? <span>재생성 {report.revision}회차</span> : null}
       </div>
       {report.errors.length > 0 && (
