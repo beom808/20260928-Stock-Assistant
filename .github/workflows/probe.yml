@@ -18,12 +18,12 @@ jobs:
           python-version-file: backend/.python-version
       - run: pip install "./backend[push]"
       # 이전 점검(probe_calendars·fred·fmp·fcm·fx)은 완료 — 필요 시 아래처럼 단계를 추가해 재실행
-      - name: Kiwoom investor net-buy (ka10051)
+      - name: Kiwoom sector quote fields (ka20001, 상승·하락 종목 수)
         env:
           KIWOOM_APP_KEY: ${{ secrets.KIWOOM_APP_KEY }}
           KIWOOM_APP_SECRET: ${{ secrets.KIWOOM_APP_SECRET }}
           KIWOOM_PROXY_URL: ${{ secrets.KIWOOM_PROXY_URL }}
-        run: python backend/scripts/probe_kiwoom_flows.py
+        run: python backend/scripts/probe_kiwoom_breadth.py
       - name: Live API push endpoints (Render)
         run: |
           API=https://stock-assistant-api-7oz1.onrender.com
