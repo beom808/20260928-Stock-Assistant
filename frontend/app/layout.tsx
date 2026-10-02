@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Disclaimer } from "@/components/Disclaimer";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { PushOptIn } from "@/components/PushOptIn";
 import "./globals.css";
 
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <body>
+        <PullToRefresh />
         <header className="topbar">
           <Link href="/" className="brand">
             한미 증시 리서치 보조

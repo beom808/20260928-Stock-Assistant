@@ -16,10 +16,10 @@ export const isReportType = (v: string): v is ReportType => v in REPORT_META;
 
 export type FetchResult<T> =
   | { ok: true; report: Envelope<T> }
-  | { ok: false; status: number; message: string };
+  | { ok: false; status: number; message: string; waking?: boolean };
 
 const WAKING_MESSAGE =
-  "백엔드 서버가 깨어나는 중일 수 있습니다(무료 서버는 첫 접속 시 30~60초 소요). 잠시 후 새로고침해 주세요.";
+  "백엔드 서버가 깨어나는 중일 수 있습니다(무료 서버는 첫 접속 시 30~60초 소요).";
 
 function get(path: string): Promise<Response> {
   return fetch(`${BASE}${path}`, { cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
@@ -32,12 +32,13 @@ export async function fetchReport<T>(type: ReportType, date?: string): Promise<F
   try {
     const res = await get(`/report/${type}${qs}`);
     if (res.status === 404) return { ok: false, status: 404, message: "해당 일자의 리포트가 아직 없습니다." };
-    if (res.status === 502 || res.status === 503) return { ok: false, status: res.status, message: WAKING_MESSAGE };
+    if (res.status === 502 || res.status === 503)
+      return { ok: false, status: res.status, message: WAKING_MESSAGE, waking: true };
     if (!res.ok) return { ok: false, status: res.status, message: `서버 오류 (${res.status})` };
     return { ok: true, report: (await res.json()) as Envelope<T> };
   } catch (e) {
-    if (isTimeout(e)) return { ok: false, status: 0, message: WAKING_MESSAGE };
-    return { ok: false, status: 0, message: "백엔드 서버에 연결할 수 없습니다." };
+    if (isTimeout(e)) return { ok: false, status: 0, message: WAKING_MESSAGE, waking: true };
+    return { ok: false, status: 0, message: "백엔드 서버에 연결할 수 없습니다.", waking: true };
   }
 }
 

@@ -211,6 +211,8 @@ async def map_to_korea(us_items: list[dict], analyst: ClaudeAnalyst) -> dict:
                 x["code"],
             )
         )
+        if not comps:  # 관련 기업이 없는 섹터는 표시하지 않는다
+            continue
         sec = SECTORS[k]
         n_news = len(heat[k]["news"])
         sectors_out.append(

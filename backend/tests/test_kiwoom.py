@@ -244,3 +244,29 @@ async def test_investor_flows_error_is_warning_not_fake_value(sessions, no_sleep
     assert await _kr_flows(ctx) == []
     await p.aclose()
     assert any("투자자별 순매수 수집 실패" in w for w in ctx.warnings)
+
+
+def test_breadth_counts_parsed_and_checked():
+    """ka20001 등락 종목 수(2026-10-02 실서버 코스닥 값). 합계가 안 맞으면 표시하지 않는다."""
+    from app.fetch.kiwoom import _breadth
+
+    body = {"rising": "1109", "stdns": "70", "fall": "562", "upl": "4", "lst": "0",
+            "trde_frmatn_stk_num": "1741"}  # fmt: skip
+    assert _breadth(body) == {"total": 1741, "rising": 1109, "flat": 70, "falling": 562,
+                              "upper_limit": 4, "lower_limit": 0}  # fmt: skip
+    assert _breadth(body | {"fall": "560"}) is None  # 합계 불일치
+    assert _breadth({k: v for k, v in body.items() if k != "rising"}) is None  # 값 누락
+
+
+def test_parse_includes_breadth():
+    from app.fetch.kiwoom import KiwoomFetcher
+
+    body = ok("+3,050.12", "-12.3", "-0.40", "5") | {
+        "rising": "500", "stdns": "50", "fall": "400", "upl": "1", "lst": "2",
+        "trde_frmatn_stk_num": "950",
+    }  # fmt: skip
+    q = KiwoomFetcher._parse("KOSPI", body)
+    want = {"total": 950, "rising": 500, "flat": 50, "falling": 400,
+            "upper_limit": 1, "lower_limit": 2}  # fmt: skip
+    assert q is not None and q.breadth == want
+    assert KiwoomFetcher._parse("KOSPI", ok("+3,050.12", "-12.3", "-0.40", "5")).breadth is None

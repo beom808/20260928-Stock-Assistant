@@ -40,7 +40,7 @@ body {
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif;
   line-height: 1.5;
-  padding-bottom: 96px; /* 고정 면책 배너 높이만큼 */
+  padding-bottom: env(safe-area-inset-bottom);
 }
 a { color: var(--accent); text-decoration: none; }
 h1 { font-size: 1.4rem; margin: 0; }
@@ -60,11 +60,22 @@ h3 { font-size: 1rem; margin: 16px 0 8px; }
 .push-btn:disabled { background: var(--bg); color: var(--muted); border-color: var(--border); cursor: default; font-weight: 400; }
 .push-count { font-size: 0.72rem; color: var(--muted); }
 
+/* 면책 문구: 화면을 가리지 않도록 페이지 맨 아래에 작게 */
 .disclaimer {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
-  background: var(--disc-bg); color: var(--disc-text);
-  font-size: 0.78rem; padding: 10px 16px; line-height: 1.4;
+  color: var(--muted); border-top: 1px solid var(--border);
+  font-size: 0.66rem; padding: 6px 16px 10px; line-height: 1.35;
 }
+/* 당겨서 새로고침 표시 */
+.ptr {
+  position: fixed; top: 0; left: 50%; z-index: 60;
+  background: var(--card); color: var(--text); border: 1px solid var(--border);
+  border-radius: 999px; padding: 6px 14px; font-size: 0.82rem; box-shadow: 0 2px 8px rgba(0,0,0,.2);
+}
+.load-error .link-btn { background: none; border: none; color: var(--accent); padding: 0; font: inherit; cursor: pointer; text-decoration: underline; }
+/* 공유 버튼 */
+.share-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+.share-btn { border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: 999px; padding: 3px 10px; font-size: 0.78rem; cursor: pointer; }
+.share-row { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 
 /* 넓은 화면: 세 리포트를 같은 폭으로 3등분 / 좁은 화면: 한 줄에 하나 */
 .dashboard { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
@@ -105,6 +116,7 @@ h3 { font-size: 1rem; margin: 16px 0 8px; }
 .index-name { font-weight: 600; font-size: 0.85rem; }
 .index-pct { font-size: clamp(1.05rem, 1.6vw, 1.45rem); font-weight: 700; }
 .index-val { font-size: 0.82rem; overflow-wrap: anywhere; }
+.breadth { margin-top: 4px; line-height: 1.35; }
 .macro-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
 .card.mini { padding: 8px 10px; margin-bottom: 8px; min-width: 0; }
 .mini-name { font-size: 0.78rem; color: var(--muted); }
@@ -164,7 +176,7 @@ h3 { font-size: 1rem; margin: 16px 0 8px; }
   .calendar th:nth-child(3), .calendar th:nth-child(4) { width: 21%; }
   .recent { display: block; }
   .recent-item { display: block; white-space: normal; }
-  .disclaimer { font-size: 0.72rem; }
+  .disclaimer { font-size: 0.62rem; }
   .calendar { font-size: 0.78rem; }
   .table th, .table td { padding: 5px 4px; }
 }

@@ -43,6 +43,8 @@ class IndexQuote(BaseModel):
     provider: str
     is_proxy: bool = False  # 지수 대신 ETF 가격을 쓴 경우 True
     note: str | None = None
+    # 국내 지수만: 상승·보합·하락 종목 수 {total, rising, flat, falling, upper_limit, lower_limit}
+    breadth: dict | None = None
 
 
 class EconEvent(BaseModel):

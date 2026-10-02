@@ -9,6 +9,10 @@
 - 업종코드: 001 = 종합(KOSPI), 101 = 종합(KOSDAQ)
 - ⚠️ 시장구분(mrkt_tp) 값은 자료마다 달라(코스피 "0"/"000", 코스닥 "1"/"10") 확정하지 못했다.
   → 후보를 순서대로 시도하고 정상 응답(return_code 0, 지수값 숫자)만 채택. 추측값은 만들지 않는다.
+- 업종현재가 응답의 등락 종목 수(2026-10-02 실서버 점검, probe_kiwoom_breadth.py):
+  rising(상승) · stdns(보합) · fall(하락) · upl(상한) · lst(하한)
+  · trde_frmatn_stk_num(거래 형성 종목 수). 코스닥 예: 1109 + 70 + 562 = 1741 = 거래 형성 종목 수
+  → 상승은 상한, 하락은 하한을 포함하는 것으로 판단.
 - 업종별투자자순매수요청: 같은 경로, api-id=ka10051 (2026-09-29 실서버 점검, probe_kiwoom_flows.py)
   body {mrkt_tp: 0 코스피 | 1 코스닥, amt_qty_tp: 0 금액, base_dt: YYYYMMDD, stex_tp: 1 KRX}
   (stex_tp 는 필수. 3 을 주면 KRX+NXT 통합, inds_cd 에 "_AL" 이 붙는다)
@@ -53,6 +57,20 @@ def _num(v: object) -> float | None:
         return float(s)
     except ValueError:
         return None
+
+
+def _breadth(body: dict) -> dict | None:
+    """등락 종목 수. 값이 하나라도 없거나 합계가 맞지 않으면 None(추정값을 만들지 않음)."""
+    keys = {"total": "trde_frmatn_stk_num", "rising": "rising", "flat": "stdns",
+            "falling": "fall", "upper_limit": "upl", "lower_limit": "lst"}  # fmt: skip
+    vals = {k: _num(body.get(f)) for k, f in keys.items()}
+    if any(v is None for v in vals.values()):
+        return None
+    out = {k: int(abs(v)) for k, v in vals.items()}  # type: ignore[arg-type]
+    if out["rising"] + out["flat"] + out["falling"] != out["total"]:
+        log.warning("키움 등락 종목 수 합계 불일치 — 표시하지 않음: %s", out)
+        return None
+    return out
 
 
 def _ok_code(body: Any) -> bool:
@@ -143,7 +161,7 @@ class KiwoomFetcher:
             change, pct = 0.0, 0.0
         return IndexQuote(
             name=name, symbol=name, close=close, change=change, change_pct=pct,
-            provider="키움증권 REST API",
+            provider="키움증권 REST API", breadth=_breadth(body),
         )  # fmt: skip
 
     async def index_quote(self, name: str, exclude_close: float | None = None) -> IndexQuote:

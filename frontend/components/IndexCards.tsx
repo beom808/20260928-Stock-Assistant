@@ -22,11 +22,30 @@ export function IndexCards({ items, fx, caption }: { items: IndexQuote[]; fx?: F
               </div>
             </>
           )}
+          {q.breadth ? <Breadth b={q.breadth} /> : null}
           {caption ? <div className="small muted">{caption}</div> : null}
           {q.note ? <div className="small muted">{q.note}</div> : null}
         </div>
       ))}
       {fx ? <FxCard fx={fx} /> : null}
+    </div>
+  );
+}
+
+// 등락 종목 수: 거래된 종목 중 상승·보합·하락 (상승은 상한, 하락은 하한 포함)
+function Breadth({ b }: { b: NonNullable<IndexQuote["breadth"]> }) {
+  const n = (v: number) => v.toLocaleString("ko-KR");
+  return (
+    <div className="breadth">
+      <div className="small muted">거래 {n(b.total)}종목 중</div>
+      <div className="small up">상승 {n(b.rising)}</div>
+      <div className="small flat">보합 {n(b.flat)}</div>
+      <div className="small down">하락 {n(b.falling)}</div>
+      {b.upper_limit || b.lower_limit ? (
+        <div className="tiny muted">
+          상한 {n(b.upper_limit)} · 하한 {n(b.lower_limit)}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -34,6 +34,15 @@ export interface IndexQuote {
   is_proxy?: boolean;
   note?: string | null;
   error?: string;
+  // 국내 지수만: 등락 종목 수 (상승은 상한, 하락은 하한 포함)
+  breadth?: {
+    total: number;
+    rising: number;
+    flat: number;
+    falling: number;
+    upper_limit: number;
+    lower_limit: number;
+  } | null;
 }
 
 export interface FxRate {

@@ -35,7 +35,8 @@ export function UsCloseView({ r, compact = false }: { r: Envelope<UsCloseData>; 
 
 export function KrWatchlistView({ r, compact = false }: { r: Envelope<KrWatchlistData>; compact?: boolean }) {
   const d = r.data;
-  const sectors = compact ? d.sectors.slice(0, 2) : d.sectors;
+  const nonEmpty = d.sectors.filter((s) => s.companies.length > 0); // 관련 기업 없는 섹터는 숨김
+  const sectors = compact ? nonEmpty.slice(0, 2) : nonEmpty;
   return (
     <>
       <ReportMeta report={r} />

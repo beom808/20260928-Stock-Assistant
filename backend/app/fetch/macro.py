@@ -5,8 +5,9 @@
 - ECB 기준환율(Frankfurter, 키 없음): 200 {"base":"USD","date":"2026-09-28","rates":{"KRW":1357.93}}
   ECB 가 영업일마다 한 번 고시하는 값이다(한국 시각으로는 그날 밤). 서울 외환시장 종가가 아니므로
   화면에 반드시 '고시일'과 함께 'ECB 기준'으로 표시한다.
-- FRED(무료 키): DGS10(미 10년물, %), DTWEXBGS(연준 광의 달러지수 — ICE DXY 와 다른 지수) 는
-  1영업일 이상 늦게 반영된다. DCOILWTICO(WTI)는 주 단위로 늦어 쓰지 않는다.
+- FRED(무료 키): DGS10(미 10년물, %)은 1영업일 이상 늦게, DTWEXBGS(연준 광의 달러지수 — ICE DXY 와
+  다른 지수)는 주 1회 발표라 최대 1주 이상 늦게 반영된다.
+  DCOILWTICO(WTI)는 주 단위로 늦어 쓰지 않는다.
 """
 
 from __future__ import annotations
@@ -18,9 +19,17 @@ from app.fetch.http import ApiClient, ApiError
 ECB_URL = "https://api.frankfurter.app"
 FRED_OBS_URL = "https://api.stlouisfed.org/fred/series/observations"
 # (표시 이름, FRED 시리즈, 단위, 설명)
+# (표시 이름, FRED 시리즈, 단위, 설명, 갱신 주기 안내)
 FRED_MACRO = [
-    ("미국 10년물 금리", "DGS10", "%", "FRED DGS10"),
-    ("달러지수(연준 광의)", "DTWEXBGS", "", "FRED DTWEXBGS · ICE DXY 와 다른 지수"),
+    ("미국 10년물 금리", "DGS10", "%", "FRED DGS10", "FRED 는 1영업일 이상 늦게 반영"),
+    # 연준 H.10 은 주 1회(통상 월요일) 발표 — 2026-09-30~10-02 점검 시 계속 9/25 값
+    (
+        "달러지수(연준 광의)",
+        "DTWEXBGS",
+        "",
+        "FRED DTWEXBGS · ICE DXY 와 다른 지수",
+        "연준 주 1회 발표",
+    ),
 ]
 
 
@@ -94,7 +103,7 @@ class MacroFetcher:
         if not self.fred_api_key:
             raise ApiError(self.provider, "config", "FRED_API_KEY 미설정")
         out = []
-        for name, series, unit, desc in FRED_MACRO:
+        for name, series, unit, desc, lag in FRED_MACRO:
             res = await self.client.get_json(
                 FRED_OBS_URL,
                 params={
@@ -120,7 +129,7 @@ class MacroFetcher:
                     "change": round(ch, 2) if ch is not None else None,
                     "date": rows[0][0].isoformat(),
                     "provider": desc,
-                    "note": f"{rows[0][0]:%m/%d} 기준 · FRED 는 1영업일 이상 늦게 반영",
+                    "note": f"{rows[0][0]:%m/%d} 기준 · {lag}",
                 }
             )
         return out

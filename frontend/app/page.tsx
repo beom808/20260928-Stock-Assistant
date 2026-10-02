@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { fetchReport, REPORT_META } from "@/lib/api";
 import type { KrCloseData, KrWatchlistData, ReportType, UsCloseData } from "@/lib/types";
+import { LoadError } from "@/components/LoadError";
 import { KrCloseView, KrWatchlistView, UsCloseView } from "@/components/ReportViews";
+import { ShareBar } from "@/components/ShareBar";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +23,7 @@ async function Slot({ type }: { type: ReportType }) {
     return (
       <section className="slot">
         {head}
-        {res.ok ? <UsCloseView r={res.report} compact /> : <p className="muted">{res.message}</p>}
+        {res.ok ? <UsCloseView r={res.report} compact /> : <LoadError message={res.message} waking={res.waking} />}
       </section>
     );
   }
@@ -30,7 +32,7 @@ async function Slot({ type }: { type: ReportType }) {
     return (
       <section className="slot">
         {head}
-        {res.ok ? <KrWatchlistView r={res.report} compact /> : <p className="muted">{res.message}</p>}
+        {res.ok ? <KrWatchlistView r={res.report} compact /> : <LoadError message={res.message} waking={res.waking} />}
       </section>
     );
   }
@@ -38,17 +40,22 @@ async function Slot({ type }: { type: ReportType }) {
   return (
     <section className="slot">
       {head}
-      {res.ok ? <KrCloseView r={res.report} compact /> : <p className="muted">{res.message}</p>}
+      {res.ok ? <KrCloseView r={res.report} compact /> : <LoadError message={res.message} waking={res.waking} />}
     </section>
   );
 }
 
 export default function Home() {
   return (
-    <div className="dashboard">
+    <>
+      <div className="share-row">
+        <ShareBar title="오늘의 한미 증시 리포트" />
+      </div>
+      <div className="dashboard">
       <Slot type="us-close" />
       <Slot type="kr-watchlist" />
       <Slot type="kr-close-and-calendar" />
-    </div>
+      </div>
+    </>
   );
 }

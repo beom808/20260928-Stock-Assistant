@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { fetchHistory, fetchReport, isReportType, REPORT_META } from "@/lib/api";
 import { withWeekday } from "@/lib/format";
 import type { KrCloseData, KrWatchlistData, UsCloseData } from "@/lib/types";
+import { LoadError } from "@/components/LoadError";
 import { KrCloseView, KrWatchlistView, UsCloseView } from "@/components/ReportViews";
+import { ShareBar } from "@/components/ShareBar";
 
 export const dynamic = "force-dynamic";
 
@@ -22,13 +24,13 @@ export default async function ReportPage({ params, searchParams }: Props) {
   let body: React.ReactNode;
   if (type === "us-close") {
     const res = await fetchReport<UsCloseData>(type, validDate);
-    body = res.ok ? <UsCloseView r={res.report} /> : <p className="muted">{res.message}</p>;
+    body = res.ok ? <UsCloseView r={res.report} /> : <LoadError message={res.message} waking={res.waking} />;
   } else if (type === "kr-watchlist") {
     const res = await fetchReport<KrWatchlistData>(type, validDate);
-    body = res.ok ? <KrWatchlistView r={res.report} /> : <p className="muted">{res.message}</p>;
+    body = res.ok ? <KrWatchlistView r={res.report} /> : <LoadError message={res.message} waking={res.waking} />;
   } else {
     const res = await fetchReport<KrCloseData>(type, validDate);
-    body = res.ok ? <KrCloseView r={res.report} /> : <p className="muted">{res.message}</p>;
+    body = res.ok ? <KrCloseView r={res.report} /> : <LoadError message={res.message} waking={res.waking} />;
   }
 
   return (
@@ -36,6 +38,9 @@ export default async function ReportPage({ params, searchParams }: Props) {
       <div className="slot-head">
         <h1>{REPORT_META[type].title}</h1>
         <span className="badge">{REPORT_META[type].slot}</span>
+        <div style={{ marginLeft: "auto" }}>
+          <ShareBar title={REPORT_META[type].title} />
+        </div>
       </div>
       <form className="date-form" method="get">
         <label>
