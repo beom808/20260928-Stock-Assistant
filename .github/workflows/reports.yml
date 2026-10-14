@@ -42,6 +42,10 @@ on:
         description: "테스트 실행 (저장·알림 없이 결과를 로그로만 확인)"
         type: boolean
         default: false
+      skip_existing:
+        description: "오늘 리포트가 이미 발행돼 있으면 건너뜀 (외부 타이머의 재시도용)"
+        type: boolean
+        default: false
       skip_ai:
         description: "AI(Anthropic) 호출 끄기 — 비용 없이 테스트할 때 (규칙 기반으로 동작)"
         type: boolean
@@ -78,6 +82,7 @@ jobs:
           INPUT_REPORTS: ${{ inputs.reports }}
           INPUT_FORCE: ${{ inputs.force }}
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_SKIP_EXISTING: ${{ inputs.skip_existing }}
         run: |
           MORNING="us-close kr-watchlist"
           AFTERNOON="kr-close-and-calendar"
@@ -97,7 +102,9 @@ jobs:
             esac
           fi
           FLAGS=""
-          if [ "${BACKUP:-}" = "1" ]; then FLAGS="--skip-existing"; fi
+          if [ "${BACKUP:-}" = "1" ] || [ "$INPUT_SKIP_EXISTING" = "true" ]; then
+            FLAGS="--skip-existing"
+          fi
           if [ "$INPUT_FORCE" = "true" ]; then FLAGS="$FLAGS --force"; fi
           if [ "$INPUT_DRY_RUN" = "true" ]; then FLAGS="$FLAGS --dry-run"; fi
           echo "types=$TYPES" >> "$GITHUB_OUTPUT"
