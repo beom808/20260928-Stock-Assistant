@@ -13,10 +13,12 @@
 [build.environment]
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
-  # 비밀값 검사 제외(변수 이름만 적는다): 백엔드 API 공개 주소다. NEXT_PUBLIC_* 는 브라우저 번들에 들어가도록
-  # 설계된 값이라 Netlify 가 '비밀 노출'로 오탐해 배포가 막혔다(2026-10-14). 아이디·비밀번호는 포함돼 있지 않다.
-  # ⚠ 실제 비밀값(API 키, 비밀번호, 프록시 주소 등)의 이름은 여기에 넣지 말 것.
-  SECRETS_SCAN_OMIT_KEYS = "API_BASE_URL,NEXT_PUBLIC_API_BASE_URL"
+  # 비밀값 '스마트 감지' 끔: 백엔드 API 공개 주소(API_BASE_URL / NEXT_PUBLIC_API_BASE_URL)가 NEXT_PUBLIC_* 규칙대로
+  # 브라우저 번들에 들어가는데, Netlify 가 이를 '비밀 노출'로 오탐해 배포가 막혔다(2026-10-14, 두 번 연속).
+  # 키 이름 제외(SECRETS_SCAN_OMIT_KEYS)는 스마트 감지에 적용되지 않았다.
+  # 이 프로젝트의 Netlify 환경변수에는 공개 값(Firebase 웹 설정, API 공개 주소)만 둔다.
+  # ⚠ 진짜 비밀(API 키·비밀번호·프록시 주소·서비스 계정 JSON)은 GitHub Secrets/Render 에만 두고 Netlify 에는 넣지 말 것.
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
 
 # Next.js 어댑터(OpenNext)를 명시적으로 사용 — 자동 감지가 안 되면 정적 파일만 올라가 전 경로가 404 가 된다.
 [[plugins]]
