@@ -16,7 +16,8 @@ from datetime import date, timedelta
 
 from app.fetch.http import ApiClient, ApiError
 
-ECB_URL = "https://api.frankfurter.app"
+# 2026-10-02 점검: 옛 주소(api.frankfurter.app)는 301 로 아래 주소로 이전됨
+ECB_URL = "https://api.frankfurter.dev/v1"
 FRED_OBS_URL = "https://api.stlouisfed.org/fred/series/observations"
 # (표시 이름, FRED 시리즈, 단위, 설명)
 # (표시 이름, FRED 시리즈, 단위, 설명, 갱신 주기 안내)

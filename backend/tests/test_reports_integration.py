@@ -67,7 +67,7 @@ def mock_finnhub(ok_news: bool = True):
 
 def mock_ecb():
     ecb = {"base": "USD", "rates": {"2026-09-25": {"KRW": 1356.0}, "2026-09-28": {"KRW": 1357.93}}}
-    respx.get(re.compile(r"https://api\.frankfurter\.app/.*")).mock(
+    respx.get(re.compile(r"https://api\.frankfurter\.(app|dev)/.*")).mock(
         return_value=httpx.Response(200, json=ecb)
     )
 

@@ -3,6 +3,8 @@
 // (선택) FCM 웹푸시 '구독' 버튼. NEXT_PUBLIC_FIREBASE_* 환경변수가 없으면 렌더하지 않는다.
 // - 구독: 알림 권한 → FCM 토큰 → POST /push/register (이 기기의 이전 토큰이 있으면 교체)
 // - 구독 취소: POST /push/unregister + FCM 토큰 삭제
+// - 자동 갱신: 이미 구독한 기기에서 사이트를 열 때(6시간에 한 번까지) 토큰을 새로 받아 서버에 다시 등록한다.
+//   웹 푸시 구독은 시간이 지나면 무효가 될 수 있어서, 사용자가 취소/재구독하지 않아도 유지되게 한다.
 // - 구독자 수: GET /push/count (등록된 기기 토큰 수 = 기기(브라우저)당 1명)
 // iPhone(iOS)은 사파리에서 '홈 화면에 추가'한 웹앱에서만 웹 푸시를 받을 수 있는 것으로 알려져 있다.
 import { useEffect, useState } from "react";
@@ -16,6 +18,8 @@ const cfg = {
 const VAPID = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
 const API = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000").replace(/\/+$/, "");
 const TOKEN_KEY = "push_token";
+const REFRESHED_KEY = "push_refreshed_at";
+const REFRESH_EVERY_MS = 6 * 60 * 60 * 1000;
 
 type State = "idle" | "busy" | "on" | "denied" | "unsupported" | "error";
 
@@ -45,6 +49,22 @@ function writeToken(t: string | null) {
   }
 }
 
+function lastRefresh(): number {
+  try {
+    return Number(localStorage.getItem(REFRESHED_KEY) || "0");
+  } catch {
+    return 0;
+  }
+}
+
+function markRefreshed() {
+  try {
+    localStorage.setItem(REFRESHED_KEY, String(Date.now()));
+  } catch {
+    /* 저장 불가여도 동작에는 영향 없음 */
+  }
+}
+
 async function post(path: string, body: object): Promise<number | null> {
   const res = await fetch(`${API}${path}`, {
     method: "POST",
@@ -69,6 +89,53 @@ export function PushOptIn() {
   const [state, setState] = useState<State>("idle");
   const [count, setCount] = useState<number | null>(null);
   const enabled = Boolean(cfg.apiKey && cfg.projectId && cfg.appId && cfg.messagingSenderId && VAPID);
+
+  // 구독 정보 자동 갱신 (알림 권한이 허용돼 있고 이 기기에 구독 기록이 있을 때만)
+  useEffect(() => {
+    if (!enabled || typeof window === "undefined" || !("Notification" in window)) return;
+    let busy = false;
+
+    async function refresh(force: boolean) {
+      if (busy || Notification.permission !== "granted") return;
+      const prev = readToken();
+      if (!prev) return;
+      if (!force && Date.now() - lastRefresh() < REFRESH_EVERY_MS) return;
+      busy = true;
+      try {
+        const fm = await messaging();
+        if (!fm) return;
+        const reg = await navigator.serviceWorker.register(
+          `/firebase-messaging-sw.js?config=${encodeURIComponent(JSON.stringify(cfg))}`,
+        );
+        const token = await fm.m.getToken(fm.messaging, { vapidKey: VAPID, serviceWorkerRegistration: reg });
+        if (!token) return;
+        const c = await post("/push/register", token !== prev ? { token, replaces: prev } : { token });
+        writeToken(token);
+        markRefreshed();
+        if (c !== null) setCount(c);
+        setState("on");
+      } catch {
+        /* 실패해도 다음에 사이트를 열 때 다시 시도한다 */
+      } finally {
+        busy = false;
+      }
+    }
+
+    refresh(false);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh(false);
+    };
+    // 서비스워커가 '구독이 바뀌었다'고 알리면 즉시 다시 등록한다
+    const onMessage = (e: MessageEvent) => {
+      if (e.data && e.data.type === "push-resubscribe") refresh(true);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    navigator.serviceWorker?.addEventListener("message", onMessage);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      navigator.serviceWorker?.removeEventListener("message", onMessage);
+    };
+  }, [enabled]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -108,6 +175,7 @@ export function PushOptIn() {
       const prev = readToken();
       const c = await post("/push/register", prev && prev !== token ? { token, replaces: prev } : { token });
       writeToken(token);
+      markRefreshed();
       if (c !== null) setCount(c);
       setState("on");
     } catch {
@@ -130,6 +198,11 @@ export function PushOptIn() {
         /* 서버에서 이미 삭제했으므로 알림은 더 오지 않는다 */
       }
       writeToken(null);
+      try {
+        localStorage.removeItem(REFRESHED_KEY);
+      } catch {
+        /* 무시 */
+      }
       setState("idle");
     } catch {
       setState("error");

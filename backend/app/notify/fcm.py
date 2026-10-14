@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 
@@ -47,6 +48,19 @@ def _access_token(settings: Settings) -> str:
     return creds.token
 
 
+def fingerprint(token: str) -> str:
+    """로그용 토큰 식별자(해시 앞 8자). 토큰 자체는 비밀에 가까워 로그에 남기지 않는다."""
+    return hashlib.sha1(token.encode()).hexdigest()[:8]
+
+
+def _error_status(resp: httpx.Response) -> str:
+    """FCM 오류 응답의 error.status(예: UNREGISTERED, INVALID_ARGUMENT). 없으면 빈 문자열."""
+    try:
+        return str((resp.json().get("error") or {}).get("status") or "")
+    except (ValueError, AttributeError):
+        return ""
+
+
 def absolute_link(settings: Settings, path: str) -> str:
     return f"{settings.site_url.rstrip('/')}/{path.lstrip('/')}"
 
@@ -77,6 +91,8 @@ async def notify_report(
     own = http is None
     http = http or httpx.AsyncClient(timeout=10)
     sent = 0
+    failed: list[str] = []  # "ab12cd34: HTTP 404 UNREGISTERED" 형식 — 어떤 구독이 왜 실패했는지
+    removed = 0
     try:
         for t in targets:
             msg = {
@@ -89,17 +105,26 @@ async def notify_report(
             try:
                 r = await http.post(url, json=msg, headers={"Authorization": f"Bearer {token}"})
             except httpx.HTTPError as e:
-                log.warning("FCM 전송 실패: %s", type(e).__name__)
+                failed.append(f"{fingerprint(t)}: {type(e).__name__}")
                 continue
             if r.status_code == 200:
                 sent += 1
             elif r.status_code in (400, 404) and "UNREGISTERED" in r.text:
                 with sessions() as s:
                     store.remove_push_token(s, t)
+                removed += 1
+                failed.append(f"{fingerprint(t)}: HTTP {r.status_code} UNREGISTERED(구독 삭제)")
             else:
-                log.warning("FCM 전송 실패: HTTP %s %s", r.status_code, r.text[:200])
+                failed.append(
+                    f"{fingerprint(t)}: HTTP {r.status_code} {_error_status(r)} {r.text[:120]}"
+                )
     finally:
         if own:
             await http.aclose()
     log.info("FCM: %d/%d 건 발송", sent, len(targets))
+    # FCM 이 200 을 줘도 기기에서 안 뜰 수 있다(도착 여부는 서버가 알 수 없음). 실패 사유는 남긴다.
+    for f in failed:
+        log.warning("FCM 실패 구독 %s", f)
+    if removed:
+        log.warning("FCM: 만료된 구독 %d건 삭제", removed)
     return sent
