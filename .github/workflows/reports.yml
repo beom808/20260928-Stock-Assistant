@@ -3,6 +3,9 @@
 # 일정은 UTC 기준. 한국(KST)은 서머타임이 없어 연중 고정.
 #   월~금 07:00 KST = "0 22 * * 0-4"  → 전일 미국 마감 → 국장 관전 포인트
 #   월~금 15:40 KST = "40 6 * * 1-5"  → 국장 마감 + 익일 미국 캘린더
+#   예비(누락 대비) 07:30 KST = "30 22 * * 0-4" / 16:30 KST = "30 7 * * 1-5"
+#     GitHub 예약 실행은 늦게 시작하거나 통째로 빠질 수 있다(2026-10-14 15:40 실행이 누락됨).
+#     예비 실행은 --skip-existing 으로 오늘 리포트가 이미 있으면 아무것도 하지 않는다(알림 중복 없음).
 # GitHub 예약 실행은 부하에 따라 수 분 이상 늦게 시작될 수 있다.
 # 한국 휴장일에는 작업이 스스로 건너뛴다(skipped). 수동 실행: Actions 탭 → Run workflow.
 #
@@ -19,6 +22,8 @@ on:
   schedule:
     - cron: "0 22 * * 0-4"
     - cron: "40 6 * * 1-5"
+    - cron: "30 22 * * 0-4"   # 예비(07:30 KST)
+    - cron: "30 7 * * 1-5"    # 예비(16:30 KST)
   workflow_dispatch:
     inputs:
       reports:
@@ -80,6 +85,8 @@ jobs:
             case "$SCHEDULE" in
               "0 22 * * 0-4") TYPES="$MORNING" ;;
               "40 6 * * 1-5") TYPES="$AFTERNOON" ;;
+              "30 22 * * 0-4") TYPES="$MORNING"; BACKUP=1 ;;
+              "30 7 * * 1-5") TYPES="$AFTERNOON"; BACKUP=1 ;;
               *) echo "알 수 없는 일정: $SCHEDULE"; exit 1 ;;
             esac
           else
@@ -90,7 +97,8 @@ jobs:
             esac
           fi
           FLAGS=""
-          if [ "$INPUT_FORCE" = "true" ]; then FLAGS="--force"; fi
+          if [ "${BACKUP:-}" = "1" ]; then FLAGS="--skip-existing"; fi
+          if [ "$INPUT_FORCE" = "true" ]; then FLAGS="$FLAGS --force"; fi
           if [ "$INPUT_DRY_RUN" = "true" ]; then FLAGS="$FLAGS --dry-run"; fi
           echo "types=$TYPES" >> "$GITHUB_OUTPUT"
           echo "flags=$FLAGS" >> "$GITHUB_OUTPUT"
@@ -150,7 +158,8 @@ jobs:
   # 공개 저장소의 GitHub Actions 는 무료이며, 테스트 실행(dry_run)에서는 건너뛴다.
   keepalive:
     needs: generate
-    if: ${{ github.event_name == 'schedule' || !inputs.dry_run }}
+    # 예비 크론(이미 발행돼 건너뛰는 경우가 대부분)에서는 서버를 깨워 둘 필요가 없다
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule != '30 22 * * 0-4' && github.event.schedule != '30 7 * * 1-5') || (github.event_name != 'schedule' && !inputs.dry_run) }}
     runs-on: ubuntu-latest
     timeout-minutes: 100
     env:

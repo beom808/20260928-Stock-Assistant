@@ -4,6 +4,11 @@
   python -m app.jobs.run us-close kr-watchlist      # 07:00 KST: 여러 리포트를 순서대로 실행
   python -m app.jobs.run kr-close-and-calendar [--force]
   python -m app.jobs.run kr-close-and-calendar --dry-run   # 테스트: 저장·알림 없이 결과만 출력
+  python -m app.jobs.run kr-close-and-calendar --skip-existing  # 오늘 리포트가 이미 있으면 건너뜀
+
+--skip-existing 은 '예비 크론'용이다. GitHub 예약 실행은 지연되거나 통째로 누락될 수 있어
+(2026-10-14 15:40 실행이 누락됨) 몇 십 분 뒤에 한 번 더 예약해 두되,
+정시 실행이 성공했다면 중복 발행·알림을 막는다.
 
 하나라도 status=failed 이거나 예외가 나면 종료 코드 1 → 크론 실행이 '실패'로 표시된다.
 
@@ -110,13 +115,24 @@ def push_body(payload: dict) -> str:
     return " · ".join(parts) or f"{payload.get('generated_at_kst')} 발행"
 
 
+def already_published(sessions, report_type: str, day) -> bool:
+    """오늘(KST) 리포트가 이미 정상(ok/partial) 발행됐는지. failed 는 다시 만들 수 있게 제외."""
+    with sessions() as s:
+        row = store.get_report(s, report_type, day)
+    return row is not None and row.status in ("ok", "partial")
+
+
 async def run_job(
     report_type: str,
     force: bool = False,
     settings: Settings | None = None,
     dry_run: bool = False,
+    skip_existing: bool = False,
 ) -> dict:
-    """dry_run=True: 리포트·실행 이력을 저장하지 않고 알림도 보내지 않는다(결과는 로그로만)."""
+    """dry_run=True: 리포트·실행 이력을 저장하지 않고 알림도 보내지 않는다(결과는 로그로만).
+
+    skip_existing=True: 오늘 리포트가 이미 발행돼 있으면 아무것도 하지 않는다(예비 크론용).
+    """
     if report_type not in REPORT_TYPES:
         raise ValueError(f"report_type must be one of {REPORT_TYPES}")
     settings = settings or get_settings()
@@ -126,6 +142,12 @@ async def run_job(
         with sessions() as s:
             run = store.start_job(s, report_type)
     today = kst_today(now_utc())
+    if skip_existing and not dry_run and already_published(sessions, report_type, today):
+        if run is not None:
+            with sessions() as s:
+                store.finish_job(s, s.merge(run), "skipped", f"{today} 이미 발행됨(예비 실행)")
+        log.info("[%s] %s 리포트가 이미 발행돼 있어 건너뜁니다(예비 실행).", report_type, today)
+        return {"status": "skipped", "reason": f"{today} report already published"}
     if not force and not is_kr_trading_day(today):
         if run is not None:
             with sessions() as s:
@@ -181,11 +203,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("report_types", nargs="+", choices=REPORT_TYPES)
     p.add_argument("--force", action="store_true", help="휴장일에도 실행")
     p.add_argument("--dry-run", action="store_true", help="저장·알림 없이 결과만 출력(테스트)")
+    p.add_argument("--skip-existing", action="store_true", help="오늘 리포트가 이미 있으면 건너뜀")
     a = p.parse_args(argv)
     failed = False
     for rt in a.report_types:
         try:
-            result = asyncio.run(run_job(rt, a.force, dry_run=a.dry_run))
+            result = asyncio.run(
+                run_job(rt, a.force, dry_run=a.dry_run, skip_existing=a.skip_existing)
+            )
         except Exception:  # noqa: BLE001 - 다음 리포트는 계속 시도하고 종료 코드로 알린다
             log.exception("%s 생성 중 예외", rt)
             failed = True

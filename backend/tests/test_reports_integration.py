@@ -304,7 +304,7 @@ def test_job_cli_exit_code(monkeypatch):
     results = {"us-close": {"status": "failed"}, "kr-watchlist": {"status": "partial"}}
     calls: list[str] = []
 
-    async def fake_run_job(rt, force=False, settings=None, dry_run=False):
+    async def fake_run_job(rt, force=False, settings=None, dry_run=False, skip_existing=False):
         calls.append(rt)
         return results[rt] | {"report_type": rt}
 
@@ -465,3 +465,21 @@ async def test_us_index_uses_official_eod_close_and_computes_change(sessions, no
         1.25,
         "2026-09-28",
     )
+
+
+def test_already_published_only_counts_ok_or_partial(sessions):
+    """예비 크론: 오늘 리포트가 ok/partial 이면 건너뛰고, 없거나 failed 면 다시 만든다."""
+    from datetime import date
+
+    from app.jobs.run import already_published
+
+    day = date(2026, 10, 14)
+    assert not already_published(sessions, KR_CLOSE, day)
+    with sessions() as s:
+        store.upsert_report(s, KR_CLOSE, day, {"title": "t"}, "failed")
+    assert not already_published(sessions, KR_CLOSE, day)
+    with sessions() as s:
+        store.upsert_report(s, KR_CLOSE, day, {"title": "t"}, "partial")
+    assert already_published(sessions, KR_CLOSE, day)
+    assert not already_published(sessions, KR_CLOSE, date(2026, 10, 15))  # 다른 날짜
+    assert not already_published(sessions, US_CLOSE, day)  # 다른 리포트
